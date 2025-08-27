@@ -1,70 +1,43 @@
 <?php
-include '../config/config.php';
-session_start(); // Start the session to access session variables
-
 header('Content-Type: application/json');
+include '../config/config.php'; // Sesuaikan path ke file config Anda
 
-$teacher_class = null;
+// Ambil parameter kelas dari request
+$kelas = $_GET['kelas'] ?? null;
 
-// Assuming you store the teacher's class in a session variable named 'user_class'
-if (isset($_SESSION['kelas_wali'])) {
-    $teacher_class = mysqli_real_escape_string($conn, $_SESSION['kelas_wali']);
+$query = "SELECT nis, nama_siswa AS name, kelas AS class, jenis_kelamin AS gender, no_hp AS phone FROM siswa";
+$conditions = [];
+
+if ($kelas) {
+    // Tambahkan kondisi WHERE untuk memfilter berdasarkan kelas
+    // Pastikan kelas di DB adalah string
+    $conditions[] = "kelas = '" . mysqli_real_escape_string($conn, $kelas) . "'";
 }
 
-$sql = "SELECT * FROM siswa";
-if ($teacher_class) {
-    $sql .= " WHERE kelas = '$teacher_class'"; // Filter by teacher's class
-}
-$sql .= " ORDER BY kelas, nis";
-
-$result = mysqli_query($conn, $sql);
-
-if (!$result) {
-    echo json_encode(['error' => 'Database query failed: ' . mysqli_error($conn)]);
-    exit;
+if (!empty($conditions)) {
+    $query .= " WHERE " . implode(" AND ", $conditions);
 }
 
-// Inisialisasi array untuk menyimpan data yang dikelompokkan berdasarkan kelas
-$groupedData = [];
+// Tambahkan pengurutan agar data konsisten
+$query .= " ORDER BY kelas ASC, nama_siswa ASC";
 
-while ($row = mysqli_fetch_assoc($result)) {
-    $class = $row['kelas']; // Ambil nilai kelas dari baris saat ini
+$result = mysqli_query($conn, $query);
 
-    // Jika kelas ini belum ada dalam array groupedData, inisialisasi sebagai array kosong
-    if (!isset($groupedData[$class])) {
-        $groupedData[$class] = [];
+$siswa_data = [];
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        // Tambahkan status default 'pending' untuk siswa yang belum diproses di frontend
+        $row['status'] = 'pending';
+        // Konversi nis menjadi id untuk konsistensi dengan logika JS
+        // Di DB Anda, nis adalah primary key siswa, jadi bisa dijadikan id di frontend
+        $row['id'] = $row['nis'];
+        $siswa_data[] = $row;
     }
-
-    // Tambahkan data siswa ke array kelas yang sesuai
-    $groupedData[$class][] = [
-        'id' => $row['nis'],
-        'name' => $row['nama_siswa'],
-        'gender' => $row['jenis_kelamin'],
-        'class' => $row['kelas'],
-        'phone' => $row['no_hp'],
-        'status' => $row['status_siswa']
-    ];
+    echo json_encode($siswa_data);
+} else {
+    http_response_code(500);
+    echo json_encode(['error' => 'Query gagal: ' . mysqli_error($conn)]);
 }
 
-$sql_tu = "SELECT * FROM siswa";
-$result_tu = mysqli_query($conn, $sql_tu);
-
-$data_siswa = [];
-
-while ($row_siswa = $result_tu->fetch_assoc()){
-    $data_siswa[] = [
-        'id' => $row_siswa['nis'],
-        'name' => $row_siswa['nama_siswa'],
-        'gender' => $row_siswa['jenis_kelamin'],
-        'kelas' => $row_siswa['kelas'],
-        'noHp' => $row_siswa['no_hp'],
-        'status' => $row_siswa['status_siswa']
-    ];
-}
-
-// Encode array yang sudah dikelompokkan ke JSON
-echo json_encode([
-    'grouped' => $groupedData,
-    'all' => $data_siswa
-]);
+mysqli_close($conn);
 ?>

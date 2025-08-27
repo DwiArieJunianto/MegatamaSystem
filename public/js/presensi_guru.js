@@ -69,6 +69,7 @@ let stream = null;
 
 let teacherData = [];
 
+// Mengambil data guru dari API untuk fitur autocomplete
 fetch('../src/API//get_guru.php')
     .then(response => response.json())
     .then(data => {
@@ -78,7 +79,8 @@ fetch('../src/API//get_guru.php')
         console.error('Gagal mengambil data guru:', error);
         showModal('error', 'Gagal', 'Tidak bisa memuat data guru dari server.');
     });
-// Simpan data presensi di localStorage
+
+// Simpan data presensi di localStorage untuk menghindari duplikasi absensi di sisi klien
 function getAttendanceData() {
     const today = new Date().toLocaleDateString('id-ID');
     const data = localStorage.getItem(`attendance_${today}`);
@@ -90,18 +92,18 @@ function saveAttendanceData(data) {
     localStorage.setItem(`attendance_${today}`, JSON.stringify(data));
 }
 
-// fungsi autocomplete
+// fungsi autocomplete untuk input identitas
 identityInput.addEventListener('input', function () {
     const inputValue = this.value.toLowerCase();
 
-    if (inputValue.length >= 3) {
-        // filter guru berdasarkan input
+    if (inputValue.length >= 3) { // Hanya tampilkan saran jika input minimal 3 karakter
+        // Filter guru berdasarkan input ID atau nama
         const filteredTeachers = teacherData.filter(teacher =>
             teacher.id.toLowerCase().includes(inputValue) ||
             teacher.name.toLowerCase().includes(inputValue)
         );
 
-        // tampilkan dropdown dengan hasil
+        // Tampilkan dropdown dengan hasil
         if (filteredTeachers.length > 0) {
             autocompleteDropdown.innerHTML = '';
             filteredTeachers.forEach(teacher => {
@@ -111,28 +113,28 @@ identityInput.addEventListener('input', function () {
                 item.addEventListener('click', function () {
                     identityInput.value = `${teacher.id} - ${teacher.name}`;
                     autocompleteDropdown.classList.add('hidden');
-                    validateForm();
+                    validateForm(); // Validasi form setelah memilih dari autocomplete
                 });
                 autocompleteDropdown.appendChild(item);
             });
-            autocompleteDropdown.classList.remove('hidden');
+            autocompleteDropdown.classList.remove('hidden'); // Tampilkan dropdown
         } else {
             autocompleteDropdown.innerHTML = '<div class="autocomplete-placeholder">Tidak ada hasil yang cocok</div>';
-            autocompleteDropdown.classList.remove('hidden');
+            autocompleteDropdown.classList.remove('hidden'); // Tetap tampilkan placeholder jika tidak ada hasil
         }
     } else {
-        autocompleteDropdown.classList.add('hidden');
+        autocompleteDropdown.classList.add('hidden'); // Sembunyikan jika input kurang dari 3
     }
 });
 
-// sembunyikan dropdown saat klik di luar
+// Sembunyikan dropdown saat klik di luar area input atau dropdown
 document.addEventListener('click', function (e) {
     if (!identityInput.contains(e.target) && !autocompleteDropdown.contains(e.target)) {
         autocompleteDropdown.classList.add('hidden');
     }
 });
 
-// navigasi dropdown pakai keyboard
+// Navigasi dropdown autocomplete pakai keyboard (panah atas/bawah, Enter)
 identityInput.addEventListener('keydown', function (e) {
     const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
     const selectedItem = autocompleteDropdown.querySelector('.selected');
@@ -167,9 +169,9 @@ identityInput.addEventListener('keydown', function (e) {
     }
 });
 
-// aktifkan kamera segera saat halaman dimuat
+// Aktifkan kamera segera saat halaman dimuat
 function activateCamera() {
-    if (!stream) {
+    if (!stream) { // Hanya aktifkan jika belum ada stream
         cameraPlaceholder.classList.remove('hidden');
         statusIndicator.className = 'w-3 h-3 rounded-full bg-yellow-500 mr-2 pulse-animation';
         statusText.textContent = 'Mengaktifkan kamera...';
@@ -179,7 +181,7 @@ function activateCamera() {
             video: {
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
-                facingMode: "user",
+                facingMode: "user", // Menggunakan kamera depan
                 frameRate: { ideal: 30 }
             }
         })
@@ -187,11 +189,12 @@ function activateCamera() {
                 stream = videoStream;
                 cameraElement.srcObject = stream;
 
+                // Non-mirrored transform
                 cameraElement.style.transform = 'scaleX(1)';
                 cameraElement.style.webkitTransform = 'scaleX(1)';
-                cameraElement.classList.add('non-mirrored');
+                cameraElement.classList.add('non-mirrored'); // Tambahkan kelas untuk CSS tambahan
 
-                cameraElement.setAttribute('playsinline', true);
+                cameraElement.setAttribute('playsinline', true); // Penting untuk iOS
                 cameraElement.setAttribute('autoplay', true);
 
                 cameraElement.onloadedmetadata = function () {
@@ -200,8 +203,7 @@ function activateCamera() {
                     cameraElement.style.webkitTransform = 'scaleX(1)';
                 };
 
-                cameraPlaceholder.classList.add('hidden');
-
+                cameraPlaceholder.classList.add('hidden'); // Sembunyikan placeholder
                 statusIndicator.className = 'w-3 h-3 rounded-full bg-green-500 mr-2 pulse-animation';
                 statusText.textContent = 'Kamera aktif dan siap digunakan';
                 statusText.className = 'text-sm text-primary font-medium';
@@ -210,6 +212,7 @@ function activateCamera() {
                 console.error('Error accessing camera:', err);
                 showModal('error', 'Error', 'Tidak dapat mengakses kamera. Pastikan Anda memberikan izin kamera.');
                 cameraPlaceholder.classList.remove('hidden');
+                // Tampilkan pesan error di placeholder kamera
                 cameraPlaceholder.innerHTML = `
                 <div class="text-center p-4">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -227,9 +230,13 @@ function activateCamera() {
     }
 }
 
-// form validasi
+// Form validasi: Aktifkan tombol capture jika input identity dan password terisi
 function validateForm() {
-    if (identityInput.value.length >= 3 && passwordInput.value) {
+    // Memastikan identityInput memiliki format "ID - Nama"
+    const identityValue = identityInput.value;
+    const isIdentityValid = identityValue.includes('-') && identityValue.split('-')[0].trim().length > 0;
+
+    if (isIdentityValid && passwordInput.value) {
         captureBtn.disabled = false;
         captureBtn.classList.remove('opacity-50', 'cursor-not-allowed');
     } else {
@@ -241,12 +248,11 @@ function validateForm() {
 identityInput.addEventListener('input', validateForm);
 passwordInput.addEventListener('input', validateForm);
 
-// ambil gambar
-// ambil gambar
+// Event listener untuk tombol ambil gambar (capture)
 captureBtn.addEventListener('click', () => {
-    if (!stream || captureBtn.disabled) return;
+    if (!stream || captureBtn.disabled) return; // Hentikan jika kamera tidak aktif atau tombol dinonaktifkan
 
-    // umpan balik visual setelah gambar diambil
+    // Umpan balik visual (flash effect) saat gambar diambil
     const flashEffect = document.createElement('div');
     flashEffect.className = 'absolute inset-0 bg-white z-10';
     document.querySelector('.camera-container').appendChild(flashEffect);
@@ -257,15 +263,16 @@ captureBtn.addEventListener('click', () => {
         setTimeout(() => flashEffect.remove(), 500);
     }, 50);
 
+    // Gambar diambil dari elemen video kamera dan digambar ke canvas
     canvasElement.width = cameraElement.videoWidth;
     canvasElement.height = cameraElement.videoHeight;
     const ctx = canvasElement.getContext('2d');
     ctx.drawImage(cameraElement, 0, 0, canvasElement.width, canvasElement.height);
 
-    // konversi gambar ke base64
+    // Konversi gambar di canvas ke format Base64 PNG
     const imageData = canvasElement.toDataURL("image/png");
 
-    // Dapatkan waktu dan tanggal saat ini *sebelum* fetch request
+    // Dapatkan waktu dan tanggal saat ini
     const now = new Date();
     const formattedHours = String(now.getHours()).padStart(2, '0');
     const formattedMinutes = String(now.getMinutes()).padStart(2, '0');
@@ -275,137 +282,142 @@ captureBtn.addEventListener('click', () => {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const dateString = now.toLocaleDateString('id-ID', options);
 
-    // Dapatkan teacherId, name, dan id dari input identitas
-    let name = identityInput.value;
+    // Dapatkan teacherId dan name dari input identitas (misal: "1001 - Nama Guru")
+    let name = '';
     let id = '';
     if (identityInput.value.includes('-')) {
         const parts = identityInput.value.split('-');
-        id = parts[0].trim();
-        name = parts[1].trim();
+        id = parts[0].trim(); // ID Guru
+        name = parts[1].trim(); // Nama Guru
+    } else {
+        // Fallback jika format tidak sesuai, gunakan seluruh input sebagai ID
+        id = identityInput.value.trim();
+        // Anda mungkin ingin mencari nama guru di teacherData berdasarkan ID di sini
+        const foundTeacher = teacherData.find(teacher => teacher.id === id);
+        if (foundTeacher) {
+            name = foundTeacher.name;
+        } else {
+            name = "Nama Tidak Dikenal";
+        }
     }
 
     // Tentukan attendanceType dan onTime/status berdasarkan waktu saat ini
     let attendanceType = '';
     let status = '';
-    let onTime = false; // Inisialisasi onTime
+    let onTime = false;
 
     const hour = now.getHours();
     const minutes = now.getMinutes();
-    const day = now.getDay();
+    const day = now.getDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
 
-    // Logika validasi awal sebelum mengirim ke server
-    if (day < 1 || day > 5) {
+    // Logika validasi waktu presensi sebelum mengirim ke server
+    if (day < 1 || day > 5) { // Hanya hari Senin-Jumat
         showModal('error', 'Absen Gagal', 'Absensi hanya dapat dilakukan pada hari kerja (Senin-Jumat).');
-        return; // Hentikan proses jika bukan hari kerja
+        return; // Hentikan proses
     }
 
-    // Ambil data presensi dari localStorage untuk cek duplikasi
-    const attendanceData = getAttendanceData();
-    const teacherId = id || 'unknown'; // Gunakan ID yang sudah diekstrak
+    if (hour < 6 || (hour === 6 && minutes < 30)) {
+        showModal('error', 'Absen Gagal', 'Absen hanya dapat dilakukan mulai pukul 06:30.');
+        return;
+    }
 
+    // Ambil data presensi dari localStorage untuk cek duplikasi di sisi klien
+    const attendanceData = getAttendanceData();
+    const teacherId = id; // Gunakan ID guru yang sudah diekstrak
+
+    // Cek duplikasi presensi (hanya untuk pencegahan di sisi klien)
     if (attendanceData[teacherId]) {
         const hasMorningAttendance = attendanceData[teacherId].morning;
         const hasAfternoonAttendance = attendanceData[teacherId].afternoon;
 
-        // Cek absen datang
-        if (hour < 10 || (hour === 10 && minutes <= 30)) {
+        if (hour < 10 || (hour === 10 && minutes <= 30)) { // Waktu absen datang
             if (hasMorningAttendance) {
                 showModal('error', 'Absen Gagal', 'Anda sudah melakukan absen datang hari ini. Silakan cek riwayat presensi.');
                 return;
             }
-        }
-        // Cek absen pulang
-        else {
+        } else { // Waktu absen pulang
             if (hasAfternoonAttendance) {
                 showModal('error', 'Absen Gagal', 'Anda sudah melakukan absen pulang hari ini. Silakan cek riwayat presensi.');
                 return;
             }
-
             // Jika belum absen datang tapi mau absen pulang (kasus absen datang terlambat)
             if (!hasMorningAttendance) {
-                // Catat sebagai absen datang terlambat di localStorage
+                // Catat sebagai absen datang terlambat di localStorage (ini hanya untuk UI/UX, validasi utama di backend)
                 attendanceData[teacherId] = attendanceData[teacherId] || {};
                 attendanceData[teacherId].morning = {
                     time: `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`,
-                    status: 'Terlambat',
+                    status: 'Terlambat (Datang)', // Status untuk datang
                     date: now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
                 };
                 saveAttendanceData(attendanceData);
 
-                showModal('info', 'Absen Datang Terlambat', 'Anda belum melakukan absen datang. Sistem mencatat absen datang terlambat. Silakan scan ulang untuk absen pulang.');
+                showModal('info', 'Absen Datang Terlambat', 'Anda belum melakukan absen datang hari ini. Sistem mencatat absen datang terlambat. Silakan scan ulang untuk absen pulang.');
                 return; // Minta scan lagi untuk absen pulang
             }
         }
     }
 
     // Menentukan Tipe dan Status Absensi
-    if (hour < 6 || (hour === 6 && minutes < 30)) {
-        showModal('error', 'Absen Gagal', 'Absen hanya dapat dilakukan mulai pukul 06:30.');
-        return;
-    } else if (hour < 10 || (hour === 10 && minutes <= 30)) {
+    if (hour < 10 || (hour === 10 && minutes <= 30)) { // Rentang waktu untuk absen "Datang"
         attendanceType = 'Datang';
-        // Tepat waktu jika absen sebelum 07:30
-        if (hour < 7 || (hour === 7 && minutes <= 30)) {
+        if (hour < 7 || (hour === 7 && minutes <= 30)) { // Batas tepat waktu datang (sebelum 07:30)
             status = 'Tepat Waktu';
             onTime = true;
         } else {
             status = 'Terlambat';
             onTime = false;
         }
-    } else {
+    } else { // Rentang waktu untuk absen "Pulang" (setelah 10:30)
         attendanceType = 'Pulang';
-        // Khusus Jumat (11:30-14:00)
-        if (day === 5) {
+        if (day === 5) { // Khusus Jumat
             if (hour < 11 || (hour === 11 && minutes < 30)) {
-                status = 'Terlambat (Sebelum waktu pulang)';
+                status = 'Pulang Awal'; // Sebelum 11:30
                 onTime = false;
-            } else if (hour >= 14) {
+            } else if (hour >= 14) { // Setelah jam 14:00
                 status = 'Terlambat';
                 onTime = false;
             } else {
-                status = 'Tepat Waktu';
+                status = 'Tepat Waktu'; // Antara 11:30 dan 14:00
                 onTime = true;
             }
-        }
-        // Senin-Kamis (setelah 10:30)
-        else {
-            status = 'Tepat Waktu'; // Tidak ada keterlambatan untuk pulang Senin-Kamis
+        } else { // Senin-Kamis
+            // Untuk Senin-Kamis, dianggap tepat waktu jika sudah masuk jam pulang (setelah 10:30)
+            status = 'Tepat Waktu';
             onTime = true;
         }
     }
 
 
-    // siapkan form data
+    // Siapkan FormData untuk dikirim ke server
     const formData = new FormData();
-    formData.append("identity", identityInput.value);
+    formData.append("identity", identityInput.value); // Kirim seluruh string "ID - Nama"
     formData.append("password", passwordInput.value);
     formData.append("image", imageData);
-    // Tambahkan data waktu dan tanggal ke formData jika dibutuhkan oleh backend
     formData.append("dateString", dateString);
     formData.append("timeString", timeString);
     formData.append("attendanceType", attendanceType);
-    formData.append("onTime", onTime ? 'true' : 'false');
+    formData.append("onTime", onTime ? 'true' : 'false'); // Kirim sebagai string boolean
 
-
-    // perbarui indikator status sebelum mengirim
+    // Perbarui indikator status di UI sebelum mengirim data
     statusIndicator.className = 'w-3 h-3 rounded-full bg-blue-500 mr-2 pulse-animation';
     statusText.textContent = 'Memproses data presensi...';
     statusText.className = 'text-sm text-primary font-medium';
 
-    // kirim ke server
+    // Kirim data ke server PHP
     fetch("../src/API//presensi_guru.php", {
         method: "POST",
         body: formData
     })
     .then(async res => {
-        const response = await res.json();
+        const response = await res.json(); // Parse respons JSON dari server
 
+        // Cek status respons dari server
         if (!res.ok || response.status !== "success") {
-            // Jika server mengembalikan error, tampilkan pesan error
-            throw new Error(response.message || "Presensi gagal.");
+            // Jika server mengembalikan status HTTP error atau status JSON bukan "success"
+            throw new Error(response.message || "Presensi gagal."); // Lemparkan error dengan pesan dari server
         }
 
-        const { name: resName, nip: resNip } = response; // Gunakan alias untuk menghindari konflik nama
+        const { name: resName, nip: resNip } = response; // Destrukturisasi respons server
 
         // Simpan data presensi di localStorage setelah berhasil dari server
         attendanceData[teacherId] = attendanceData[teacherId] || {};
@@ -422,35 +434,39 @@ captureBtn.addEventListener('click', () => {
                 date: dateString
             };
         }
-        saveAttendanceData(attendanceData);
+        saveAttendanceData(attendanceData); // Simpan perubahan ke localStorage
 
-        // Tampilkan modal keberhasilan dengan detail
+        // Tampilkan modal keberhasilan dengan detail presensi
         showAttendanceModal("success", response.message, {
             name: resName,
             nip: resNip,
-            date: dateString, // dateString sekarang sudah didefinisikan
-            time: timeString, // timeString sekarang sudah didefinisikan
-            type: attendanceType, // attendanceType sekarang sudah didefinisikan
-            status: status // status sekarang sudah didefinisikan (berdasarkan onTime)
+            date: dateString,
+            time: timeString,
+            type: attendanceType,
+            status: status
         });
 
-        // perbarui status indikator setelah berhasil
+        // Perbarui status indikator di UI setelah berhasil
         statusIndicator.className = 'w-3 h-3 rounded-full bg-green-500 mr-2 pulse-animation';
         statusText.textContent = 'Kamera aktif dan siap digunakan';
         statusText.className = 'text-sm text-primary font-medium';
+        // Reset input password setelah berhasil
+        passwordInput.value = '';
+        validateForm(); // Re-validate form
     })
     .catch(err => {
+        // Tangani error yang dilemparkan (baik dari server maupun network)
         console.error("Presensi gagal:", err);
         showModal("error", "Presensi Gagal", err.message);
 
-        // perbarui status indikator setelah gagal
+        // Perbarui status indikator di UI setelah gagal
         statusIndicator.className = 'w-3 h-3 rounded-full bg-red-500 mr-2';
         statusText.textContent = 'Terjadi kesalahan, coba lagi.';
         statusText.className = 'text-sm text-red-800 font-medium';
     });
 });
 
-// fungsi modal
+// Fungsi untuk menampilkan modal umum (error, success, info)
 const modal = document.getElementById('modal');
 const modalContent = document.getElementById('modal-content');
 const modalTitle = document.getElementById('modal-title');
@@ -463,7 +479,7 @@ const modalClose = document.getElementById('modal-close');
 function showModal(type, title, message) {
     modalTitle.textContent = title;
     modalMessage.textContent = message;
-    modalDetails.innerHTML = '';
+    modalDetails.innerHTML = ''; // Pastikan detail kosong untuk modal umum
 
     if (type === 'error') {
         modalIcon.className = 'mx-auto flex items-center justify-center h-16 w-16 rounded-full mb-4 bg-red-100';
@@ -498,6 +514,7 @@ function showModal(type, title, message) {
     }, 10);
 }
 
+// Fungsi untuk menampilkan modal khusus presensi dengan detail
 function showAttendanceModal(result, status, details = null) {
     const type = result === 'success' ? 'success' : 'error';
     const title = result === 'success' ? 'Presensi Berhasil' : 'Presensi Gagal';
@@ -506,16 +523,17 @@ function showAttendanceModal(result, status, details = null) {
     modalTitle.textContent = title;
     modalMessage.textContent = message;
 
+    // Tampilkan detail hanya jika presensi berhasil
     if (details && result === 'success') {
         modalDetails.innerHTML = `
-            <div class="space-y-2">
+            <div class="space-y-2 text-left">
                 <div class="flex justify-between">
                     <span class="font-medium text-gray-600">Nama:</span>
                     <span class="text-gray-800 font-semibold">${details.name}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="font-medium text-gray-600">ID:</span>
-                    <span class="text-gray-800 font-semibold">${details.id}</span>
+                    <span class="text-gray-800 font-semibold">${details.nip}</span>
                 </div>
                 <div class="flex justify-between">
                     <span class="font-medium text-gray-600">Tanggal:</span>
@@ -532,9 +550,10 @@ function showAttendanceModal(result, status, details = null) {
             </div>
         `;
     } else {
-        modalDetails.innerHTML = '';
+        modalDetails.innerHTML = ''; // Kosongkan detail jika bukan sukses atau tidak ada detail
     }
 
+    // Atur ikon dan warna header modal berdasarkan hasil
     if (result === 'success') {
         modalIcon.className = 'mx-auto flex items-center justify-center h-16 w-16 rounded-full mb-4 bg-green-100';
         modalIcon.innerHTML = `
@@ -560,27 +579,50 @@ function showAttendanceModal(result, status, details = null) {
     }, 10);
 }
 
+// Event listener untuk tombol tutup modal
 modalClose.addEventListener('click', () => {
     modalContent.classList.remove('scale-100', 'opacity-100');
     modalContent.classList.add('scale-95', 'opacity-0');
     setTimeout(() => {
         modal.classList.add('hidden');
-    }, 300);
+    }, 300); // Durasi harus sama dengan durasi transisi CSS
 });
 
-// cek apakah mengakses dari jaringan lokal
+// Fungsi untuk memeriksa akses dari jaringan lokal
 function checkLocalNetwork() {
     const hostname = window.location.hostname;
+    // Cek jika hostname adalah localhost, IP lokal (127.0.0.1, 192.168.x.x, 10.x.x.x)
     const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.');
 
     if (!isLocalhost) {
         showModal('error', 'Akses Ditolak', 'Sistem presensi hanya dapat diakses melalui jaringan lokal sekolah.');
+        // Mungkin juga menonaktifkan elemen form atau tombol presensi
+        captureBtn.disabled = true;
+        identityInput.disabled = true;
+        passwordInput.disabled = true;
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop()); // Hentikan kamera
+            stream = null;
+        }
+        cameraPlaceholder.classList.remove('hidden');
+        cameraPlaceholder.innerHTML = `
+            <div class="text-center p-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-2 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-base font-medium text-gray-600">Akses jaringan tidak diizinkan</p>
+                <p class="text-sm text-gray-500 mt-2">Sistem ini hanya dapat digunakan di jaringan lokal sekolah.</p>
+            </div>
+        `;
+        statusIndicator.className = 'w-3 h-3 rounded-full bg-red-500 mr-2';
+        statusText.textContent = 'Akses jaringan tidak diizinkan.';
+        statusText.className = 'text-sm text-red-800 font-medium';
     }
 }
 
-// jalankan saat halaman dimuat
+// Jalankan fungsi saat halaman dimuat
 window.addEventListener('load', () => {
-    checkLocalNetwork();
-    validateForm();
-    activateCamera();
+    checkLocalNetwork(); // Periksa jaringan saat load
+    validateForm(); // Validasi form awal
+    activateCamera(); // Aktifkan kamera
 });

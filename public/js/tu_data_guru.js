@@ -1,430 +1,394 @@
-// Toast Notification Class
-class ToastNotification {
-    constructor() {
-        this.toastElement = document.getElementById('toast-notification');
-        this.toastIcon = document.getElementById('toast-icon');
-        this.toastTitle = document.getElementById('toast-title');
-        this.toastMessage = document.getElementById('toast-message');
-        this.toastClose = document.getElementById('toast-close');
-        this.toastContainer = this.toastElement.querySelector('.bg-white');
+document.addEventListener('DOMContentLoaded', () => {
+    const teacherForm = document.getElementById('teacherForm');
+    const teacherTableBody = document.getElementById('teacherTableBody');
+    // Pastikan apiUrl sesuai dengan lokasi tu_data_guru.php Anda
+    // Ini harus path yang bisa diakses dari browser, misal: http://localhost/MegatamaSystem/src/API/tu_data_guru.php
+    const apiUrl = 'http://localhost/MEGATAMA-MAIN/src/API/tu_data_guru.php'; 
+    const teacherModal = document.getElementById('teacherModal');
+    const modalTitle = document.getElementById('modalTitle');
+    let currentEditId = null; // Untuk menyimpan ID guru yang sedang diedit atau dihapus
+    let allTeacherData = []; // Semua data guru yang didapat dari API
+    let currentPage = 1;
+    const rowsPerPage = 9;
 
-        this.isVisible = false;
-        this.hideTimeout = null;
 
-        this.setupEventListeners();
-    }
+    const toastNotification = document.getElementById('toast-notification');
+    const toastTitle = document.getElementById('toast-title');
+    const toastMessage = document.getElementById('toast-message');
+    const toastIcon = document.getElementById('toast-icon');
+    const toastCloseButton = document.getElementById('toast-close');
 
-    setupEventListeners() {
-        // Event listener untuk tombol close
-        this.toastClose.addEventListener('click', () => {
-            this.hide();
-        });
-
-        // Auto hide setelah 5 detik
-        this.toastElement.addEventListener('transitionend', (e) => {
-            if (e.target === this.toastElement && this.isVisible) {
-                this.autoHide();
-            }
-        });
-    }
-
-    show(type, title, message) {
-        // Clear timeout sebelumnya jika ada
-        if (this.hideTimeout) {
-            clearTimeout(this.hideTimeout);
+    // Fungsi untuk menampilkan toast notification
+    function showToast(type, title, message) {
+        // Hapus kelas animasi sebelumnya dan sembunyikan dulu
+        toastNotification.classList.remove('toast-enter', 'toast-exit');
+        toastNotification.classList.add('hidden'); 
+        
+        // Atur warna border dan ikon berdasarkan tipe
+        let borderColor = '';
+        let iconHtml = '';
+        if (type === 'success') {
+            borderColor = 'border-l-green-500';
+            iconHtml = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
+        } else if (type === 'error') {
+            borderColor = 'border-l-red-500';
+            iconHtml = '<i class="fas fa-times-circle text-red-500 text-xl"></i>';
+        } else if (type === 'info') {
+            borderColor = 'border-l-blue-500';
+            iconHtml = '<i class="fas fa-info-circle text-blue-500 text-xl"></i>';
         }
 
-        // Set konten toast
-        this.setContent(type, title, message);
-
-        // Reset classes
-        this.toastElement.classList.remove('toast-exit', 'toast-show');
-        this.toastElement.classList.add('toast-enter');
-
-        // Force reflow untuk memastikan class diterapkan
-        this.toastElement.offsetHeight;
+        const toastBgDiv = toastNotification.querySelector('.bg-white');
+        if (toastBgDiv) { // Pastikan elemen ditemukan
+            toastBgDiv.className = `bg-white rounded-lg shadow-lg border-l-4 p-4 max-w-sm ${borderColor}`;
+        }
+        toastIcon.innerHTML = iconHtml;
+        toastTitle.textContent = title;
+        toastMessage.textContent = message;
 
         // Tampilkan toast dengan animasi
+        toastNotification.classList.remove('hidden');
+        toastNotification.classList.add('toast-enter');
+
+        // Otomatis sembunyikan setelah beberapa detik
         setTimeout(() => {
-            this.toastElement.classList.remove('toast-enter');
-            this.toastElement.classList.add('toast-show');
-            this.isVisible = true;
-        }, 10);
+            toastNotification.classList.remove('toast-enter');
+            toastNotification.classList.add('toast-exit');
+            setTimeout(() => {
+                toastNotification.classList.add('hidden');
+            }, 300); // Durasi animasi toast-exit
+        }, 5000); // Toast akan hilang setelah 5 detik
     }
 
-    hide() {
-        if (!this.isVisible) return;
-
-        // Clear auto hide timeout
-        if (this.hideTimeout) {
-            clearTimeout(this.hideTimeout);
-        }
-
-        // Sembunyikan dengan animasi
-        this.toastElement.classList.remove('toast-show');
-        this.toastElement.classList.add('toast-exit');
-        this.isVisible = false;
-
-        // Reset ke posisi awal setelah animasi selesai
-        setTimeout(() => {
-            this.toastElement.classList.remove('toast-exit');
-            this.toastElement.classList.add('toast-enter');
-        }, 300);
+    // Tutup toast saat tombol close diklik
+    if (toastCloseButton) { 
+        toastCloseButton.addEventListener('click', () => {
+            toastNotification.classList.remove('toast-enter');
+            toastNotification.classList.add('toast-exit');
+            setTimeout(() => {
+                toastNotification.classList.add('hidden');
+            }, 300);
+        });
     }
 
-    autoHide() {
-        this.hideTimeout = setTimeout(() => {
-            this.hide();
-        }, 5000); // Auto hide setelah 5 detik
-    }
+    function updatePagination() {
+    const totalData = allTeacherData.length;
+    const totalPages = Math.ceil(totalData / rowsPerPage);
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = Math.min(start + rowsPerPage, totalData);
 
-    setContent(type, title, message) {
-        // Reset border color
-        this.toastContainer.className = this.toastContainer.className.replace(/border-l-(green|red|yellow|blue)-500/g, '');
+    const currentRangeEl = document.getElementById('currentRange');
+    const totalDataEl = document.getElementById('totalData');
+    const pageNumbersContainer = document.getElementById('pageNumbers');
 
-        // Set icon dan warna berdasarkan type
-        switch (type) {
-            case 'success':
-                this.toastIcon.innerHTML = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
-                this.toastContainer.classList.add('border-l-green-500');
-                break;
-            case 'error':
-                this.toastIcon.innerHTML = '<i class="fas fa-times-circle text-red-500 text-xl"></i>';
-                this.toastContainer.classList.add('border-l-red-500');
-                break;
-            case 'warning':
-                this.toastIcon.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>';
-                this.toastContainer.classList.add('border-l-yellow-500');
-                break;
-            case 'info':
-                this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-blue-500 text-xl"></i>';
-                this.toastContainer.classList.add('border-l-blue-500');
-                break;
-            default:
-                this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-gray-500 text-xl"></i>';
-                this.toastContainer.classList.add('border-l-gray-500');
-        }
-
-        this.toastTitle.textContent = title;
-        this.toastMessage.textContent = message;
-    }
-}
-
-// Teacher Data
-let teachersData = [];
-
-fetch('../src/API/get_guru.php')
-    .then(res => res.json())
-    .then(data => {
-        teachersData = data;
-        filteredData = [...teachersData];
-
-        renderTable();        // Pindahkan ke sini
-        renderPagination();   // Pindahkan ke sini
-    })
-    .catch(err => console.error('Gagal mengambil data guru:', err));
-
-
-let filteredData = [...teachersData];
-let currentPage = 1;
-const itemsPerPage = 9;
-let editingId = null;
-let deleteId = null;
-
-// Inisialisasi toast notification
-let toast;
-
-// Initialize page
-document.addEventListener('DOMContentLoaded', function () {
-    // Initialize toast notification
-    toast = new ToastNotification();
-
-    setupSearch();
-    setupForm();
-});
-
-// Render table
-function renderTable() {
-    const tbody = document.getElementById('teacherTableBody');
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentData = filteredData.slice(startIndex, endIndex);
-
-    tbody.innerHTML = currentData.map(teacher => `
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <img src="../src/${teacher.photo}" alt="${teacher.name}" class="w-10 h-10 rounded-full object-cover">
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${teacher.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${teacher.gender}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${teacher.nip}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${teacher.subject}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${teacher.waliKelas || 'Bukan Wali Kelas'}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <span class="px-2 py-1 text-xs font-medium rounded-full ${teacher.status === 'Aktif' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-                            ${teacher.status}
-                        </span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div class="flex space-x-2">
-                            <button onclick="editTeacher(${teacher.id})" class="text-orange-600 hover:text-orange-900 p-1">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button onclick="deleteTeacher(${teacher.id})" class="text-red-600 hover:text-red-900 p-1">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-
-    updatePaginationInfo();
-}
-
-// Render pagination
-function renderPagination() {
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-    const pageNumbers = document.getElementById('pageNumbers');
-
-    let paginationHTML = '';
-    for (let i = 1; i <= totalPages; i++) {
-        paginationHTML += `
-                    <button onclick="goToPage(${i})" class="px-3 py-1 text-sm rounded ${i === currentPage ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}">
-                        ${i}
-                    </button>
-                `;
-    }
-    pageNumbers.innerHTML = paginationHTML;
-}
-
-// Update pagination info
-function updatePaginationInfo() {
-    const startIndex = (currentPage - 1) * itemsPerPage + 1;
-    const endIndex = Math.min(currentPage * itemsPerPage, filteredData.length);
-    const totalItems = filteredData.length;
-
-    document.getElementById('paginationInfo').textContent =
-        `Menampilkan ${startIndex}-${endIndex} dari ${totalItems} guru`;
-}
-
-// Pagination functions
-function goToPage(page) {
-    currentPage = page;
-    renderTable();
-    renderPagination();
-}
-
-function previousPage() {
-    if (currentPage > 1) {
-        currentPage--;
-        renderTable();
-        renderPagination();
-    }
-}
-
-function nextPage() {
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-    if (currentPage < totalPages) {
-        currentPage++;
-        renderTable();
-        renderPagination();
-    }
-}
-
-// Search functionality
-function setupSearch() {
-    const searchInput = document.getElementById('searchInput');
-    searchInput.addEventListener('input', function () {
-        const searchTerm = this.value.toLowerCase();
-        filteredData = teachersData.filter(teacher =>
-            teacher.name.toLowerCase().includes(searchTerm) ||
-            teacher.subject.toLowerCase().includes(searchTerm) ||
-            teacher.nip.includes(searchTerm)
-        );
-        currentPage = 1;
-        renderTable();
-        renderPagination();
-    });
-}
-
-// Modal functions
-function openAddModal() {
-    editingId = null;
-    document.getElementById('modalTitle').textContent = 'Tambah Data Guru';
-    document.getElementById('teacherForm').reset();
-    document.getElementById('teacherWaliKelas').value = "";
-    document.getElementById('teacherModal').classList.remove('hidden');
-}
-
-function editTeacher(id) {
-    console.log("Editing teacher with ID:", id, " (Type:", typeof id, ")"); // Cek tipe data ID dari tombol
-    editingId = id;
-    // Temukan guru di teachersData
-    const teacher = teachersData.find(t => {
-        console.log("Comparing:", t.id, "(Type:", typeof t.id, ") with", id, "(Type:", typeof id, ")"); // Debugging perbandingan
-        return t.id == id; // Gunakan '==' (loose equality) untuk sementara
-    });
-
-    console.log("Found teacher:", teacher); // Ini masih akan undefined jika tidak ketemu
-
-    // Lanjutkan kode Anda jika teacher ditemukan
-    if (teacher) { // Tambahkan pengecekan ini!
-        document.getElementById('modalTitle').textContent = 'Edit Data Guru';
-        document.getElementById('teacherName').value = teacher.name;
-        document.getElementById('teacherGender').value = teacher.gender;
-        document.getElementById('teacherNIP').value = teacher.nip;
-        document.getElementById('teacherSubject').value = teacher.subject;
-        document.getElementById('teacherWaliKelas').value = teacher.waliKelas || "";
-        document.getElementById('teacherStatus').value = teacher.status;
-        document.getElementById('teacherUsername').value = teacher.username;
-        document.getElementById('teacherPassword').value = teacher.password;
-
-        document.getElementById('teacherModal').classList.remove('hidden');
+    // Aman: Cek elemen ada dulu
+    if (currentRangeEl && totalDataEl) {
+        currentRangeEl.textContent = `${start + 1}-${end}`;
+        totalDataEl.textContent = totalData;
     } else {
-        console.error("Guru dengan ID", id, "tidak ditemukan di teachersData.");
-        // Opsional: Tampilkan toast error atau notifikasi ke pengguna
-        toast.show('error', 'Data Tidak Ditemukan', `Guru dengan ID ${id} tidak ditemukan.`);
+        console.warn("❗ ID #currentRange atau #totalData tidak ditemukan.");
     }
-}
 
-function closeModal() {
-    document.getElementById('teacherModal').classList.add('hidden');
-}
+    if (pageNumbersContainer) {
+        pageNumbersContainer.innerHTML = '';
+        for (let i = 1; i <= totalPages; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.textContent = i;
+        pageButton.className = `px-2 py-1 text-sm rounded ${i === currentPage ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`;
+        pageButton.addEventListener('click', () => {
+            currentPage = i;
+            renderTable(allTeacherData);
+        });
+        pageNumbersContainer.appendChild(pageButton);
+        }
+    } else {
+        console.warn("❗ ID #pageNumbers tidak ditemukan.");
+    }
+    }
 
-function deleteTeacher(id) {
-    deleteId = id;
-    const teacher = teachersData.find(t => t.id === id);
 
-    // Show warning toast before showing delete modal
-    //toast.show('warning', 'Konfirmasi Hapus', `Apakah Anda yakin ingin menghapus data guru ${teacher.name}?`);
+    window.previousPage = () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTable(allTeacherData);
+        }
+    };
 
-    document.getElementById('deleteModal').classList.remove('hidden');
-}
+    window.nextPage = () => {
+        const totalPages = Math.ceil(allTeacherData.length / rowsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderTable(allTeacherData);
+        }
+    };
 
-function closeDeleteModal() {
-    document.getElementById('deleteModal').classList.add('hidden');
-}
+    // Fungsi render data guru ke tabel
+    function renderTable(data) {
+    teacherTableBody.innerHTML = '';
+    allTeacherData = data; // simpan semua data
 
-async function confirmDelete() {
-     console.log("ID yang akan dihapus:", deleteId); // Tambahkan log ini
-    if (deleteId === null) {
-        toast.show('error', 'Error!', 'Tidak ada guru yang dipilih untuk dihapus.');
+    if (!data || data.length === 0) {
+        teacherTableBody.innerHTML = `<tr><td colspan="8" class="text-center py-4">Data tidak ditemukan</td></tr>`;
+        document.getElementById('currentRange').textContent = `0-0`;
+        document.getElementById('totalData').textContent = `0`;
+        document.getElementById('pageNumbers').innerHTML = '';
         return;
     }
 
-    try {
-        const response = await fetch('../src/API/delete.php', { // PHP untuk DELETE
-            method: 'POST', // Gunakan POST untuk kirim ID yang akan dihapus
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ id: deleteId }) // Kirim ID sebagai JSON
-        });
+    const start = (currentPage - 1) * rowsPerPage;
+    const end = Math.min(start + rowsPerPage, data.length);
+    const pageData = data.slice(start, end); // Ambil data sesuai halaman
 
-        const result = await response.json();
+    pageData.forEach(guru => {
+        const fotoUrl = guru.foto_url && guru.foto_url !== '' 
+            ? guru.foto_url 
+            : 'https://via.placeholder.com/40/D1D5DB/4B5563?text=NoPhoto'; 
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <img src="${fotoUrl}" alt="Foto Guru" class="h-10 w-10 rounded-full object-cover">
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">${guru.nama_guru}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${guru.jenis_kelamin}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${guru.ID}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${guru.mata_pelajaran || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${guru.wali_kelas || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${guru.status}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <button onclick="openEditModal(${guru.id_guru})" title="Edit" class="text-blue-600 hover:text-blue-900 mr-2">
+                    <i class="fa fa-pencil"></i>
+                </button>
+                <button onclick="openDeleteModal(${guru.id_guru})" title="Hapus" class="text-red-600 hover:text-red-900">
+                    <i class="fa fa-trash"></i>
+                </button>
+            </td>
+        `;
+        teacherTableBody.appendChild(row);
+    });
 
-        if (result.success) {
-            toast.show('success', 'Berhasil Dihapus!', `Data guru berhasil dihapus dari sistem.`);
-            // Setelah berhasil di database, ambil ulang semua data
-            const updatedDataResponse = await fetch('../src/API/get_guru.php');
-            teachersData = await updatedDataResponse.json();
-            filteredData = [...teachersData];
+    updatePagination(); // Panggil update setelah render
+}
 
-            closeDeleteModal();
-            currentPage = 1; // Kembali ke halaman pertama setelah perubahan
-            renderTable();
-            renderPagination();
+    // function renderTable(data) {
+    //     teacherTableBody.innerHTML = ''; // Kosongkan dulu
+    //     if (!data || data.length === 0) { // Menambahkan pengecekan !data
+    //         teacherTableBody.innerHTML = `<tr><td colspan="8" class="text-center py-4">Data tidak ditemukan</td></tr>`;
+    //         return;
+    //     }
+    //     data.forEach(guru => {
+    //         const fotoUrl = guru.foto_url && guru.foto_url !== '' 
+    //             ? guru.foto_url 
+    //             : 'https://via.placeholder.com/40/D1D5DB/4B5563?text=NoPhoto'; 
+            
+    //         const row = document.createElement('tr');
+    //         row.innerHTML = `
+    //             <td class="px-6 py-4 whitespace-nowrap">
+    //                 <img src="${fotoUrl}" alt="Foto Guru" class="h-10 w-10 rounded-full object-cover">
+    //             </td>
+    //             <td class="px-6 py-4 whitespace-nowrap">${guru.nama_guru}</td>
+    //             <td class="px-6 py-4 whitespace-nowrap">${guru.jenis_kelamin}</td>
+    //             <td class="px-6 py-4 whitespace-nowrap">${guru.ID}</td>
+    //             <td class="px-6 py-4 whitespace-nowrap">${guru.mata_pelajaran || '-'}</td>
+    //             <td class="px-6 py-4 whitespace-nowrap">${guru.wali_kelas || '-'}</td>
+    //             <td class="px-6 py-4 whitespace-nowrap">${guru.status}</td>
+    //             <td class="px-6 py-4 whitespace-nowrap">
+    //                 <button onclick="openEditModal(${guru.id_guru})" title="Edit" class="text-blue-600 hover:text-blue-900 mr-2">
+    //                     <i class="fa fa-pencil"></i>
+    //                 </button>
+    //                 <button onclick="openDeleteModal(${guru.id_guru})" title="Hapus" class="text-red-600 hover:text-red-900">
+    //                     <i class="fa fa-trash"></i>
+    //                 </button>
+    //             </td>
+    //         `;
+    //         teacherTableBody.appendChild(row);
+    //     });
+    //     updatePagination();
+    // }
 
-        } else {
-            toast.show('error', 'Error!', `Gagal menghapus data: ${result.message || 'Terjadi kesalahan tidak diketahui'}`);
-            console.error('Error Hapus:', result.message || 'Tidak ada pesan dari server');
+    // Fungsi fetch data guru dari API
+    async function loadDataGuru(search = '') {
+        try {
+            const url = search ? `${apiUrl}?search=${encodeURIComponent(search)}` : apiUrl;
+            const response = await fetch(url);
+            if (!response.ok) { // Jika status HTTP bukan 2xx (e.g., 404, 500)
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+            const data = await response.json();
+            renderTable(data);
+        } catch (err) {
+            console.error('Gagal load data guru:', err);
+            teacherTableBody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-red-600">Gagal memuat data: ${err.message || err}</td></tr>`;
+            showToast('error', 'Gagal Memuat Data', 'Terjadi kesalahan saat memuat data guru. Cek konsol untuk detail.');
         }
-    } catch (error) {
-        toast.show('error', 'Error Koneksi!', `Gagal menghubungi server untuk menghapus data.`);
-        console.error("Error saat menghapus data:", error);
-    } finally {
-        deleteId = null; // Reset deleteId
-    }
-}
+    }  
 
+    loadDataGuru(); // Load data awal saat halaman siap
 
-let currentTeacherPhoto;
+    // Event submit form tambah/edit data guru
+    teacherForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('nama_guru', document.getElementById('teacherName').value);
+        formData.append('jenis_kelamin', document.getElementById('teacherGender').value);
+        formData.append('ID', document.getElementById('ID').value); // NIP/UID
+        formData.append('mata_pelajaran', document.getElementById('teacherSubject').value);
+        formData.append('wali_kelas', document.getElementById('teacherWaliKelas').value);
+        formData.append('status', document.getElementById('status').value);
+        formData.append('username', document.getElementById('teacherUsername').value);
+        formData.append('password', document.getElementById('teacherPassword').value);
 
-function setupForm() {
-    const form = document.getElementById('teacherForm');
+        const photoInput = document.getElementById('teacherPhoto');
+        if (photoInput.files.length > 0) {
+            formData.append('foto_wajah', photoInput.files[0]);
+        }
 
-    if (form) {
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
+        let url = apiUrl; // URL API tetap sama
+        let method_to_send = 'POST'; // Default untuk insert
 
-            const formData = new FormData();
-            formData.append('fullname', document.getElementById('teacherName').value); // SESUAIKAN DENGAN NAMA DI PHP: 'fullname'
-            formData.append('gender', document.getElementById('teacherGender').value);
-            formData.append('nip', document.getElementById('teacherNIP').value); // SESUAIKAN DENGAN NAMA DI PHP: 'nip'
-            formData.append('subject', document.getElementById('teacherSubject').value); // Tambahkan subject
-            formData.append('waliKelas', document.getElementById('teacherWaliKelas').value); // SESUAIKAN DENGAN NAMA DI PHP: 'waliKelas' (atau wali_kelas)
-            formData.append('status', document.getElementById('teacherStatus').value);
-            formData.append('username', document.getElementById('teacherUsername').value);
-            formData.append('password', document.getElementById('teacherPassword').value);
-
-            // === Tambahkan file foto ke FormData ===
-            const photoInput = document.getElementById('teacherPhoto');
-            if (photoInput.files.length > 0) {
-                formData.append('foto_profil', photoInput.files[0]); // Nama 'foto_profil' harus sama dengan $_FILES di PHP
-            } else if (editingId && currentTeacherPhoto) {
-                // Jika tidak ada file baru diupload saat edit, kirim URL foto lama
-                // Ini penting agar PHP tahu foto lama tidak dihapus jika tidak ada update
-                formData.append('current_photo_url', currentTeacherPhoto);
+        if (currentEditId) {
+            formData.append('id_guru', currentEditId); 
+            formData.append('_method', 'PUT'); // Override method ke PUT
+        } else {
+            // Untuk insert, jika password kosong dan ini bukan edit, berikan alert
+            if (document.getElementById('teacherPassword').value === '') {
+                showToast('error', 'Gagal Menambah!', 'Password harus diisi untuk guru baru.');
+                return; // Hentikan proses submit
             }
-            // =======================================
+        }
 
-            let endpoint = '';
-            let messageType = '';
+        try {
+            const response = await fetch(url, {
+                method: method_to_send, // Akan selalu POST untuk FormData
+                body: formData
+            });
+            const result = await response.json();
 
-            if (editingId) {
-                // Jika sedang mengedit
-                endpoint = '../src/API/add_guru.php'; // PHP untuk UPDATE
-                formData.append('id_guru', editingId); // Kirim ID guru yang akan diedit. Nama ini harus sama dengan $_POST di PHP
-                messageType = 'diperbarui';
+            if (result.success) {
+                showToast('success', 'Berhasil!', result.message || ("Data guru berhasil " + (currentEditId ? "diperbarui!" : "ditambahkan!")));
+                closeModal();
+                teacherForm.reset();
+                currentEditId = null; // Reset edit ID
+                loadDataGuru(); // Refresh tabel
             } else {
-                // Jika sedang menambah
-                endpoint = '../src/API/add_guru.php'; // PHP untuk ADD
-                messageType = 'ditambahkan';
+                showToast('error', 'Gagal!', result.error || 'Operasi gagal.');
+                console.error("Error dari server:", result.error); // Log error dari server
             }
+        } catch (err) {
+            console.error("Error saat submit:", err);
+            showToast('error', 'Kesalahan Jaringan!', 'Terjadi kesalahan saat mengirim data ke server. Cek konsol browser.');
+        }
+    });
 
-            try {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    // Hapus 'Content-Type': 'application/json' ketika menggunakan FormData
-                    // Browser akan otomatis mengatur Content-Type: multipart/form-data
-                    body: formData
-                });
-
-                const result = await response.json(); // PHP harus mengembalikan JSON
-
-                if (result.success) {
-                    toast.show('success', `Berhasil ${messageType}!`, result.message);
-
-                    // Refresh data setelah sukses (ini masih cara terbaik)
-                    const updatedDataResponse = await fetch('../src/API/get_guru.php');
-                    teachersData = await updatedDataResponse.json();
-                    filteredData = [...teachersData];
-
-                    closeModal();
-                    currentPage = 1;
-                    renderTable();
-                    renderPagination();
-
-                } else {
-                    toast.show('error', 'Error!', `Gagal ${messageType}: ${result.message || 'Terjadi kesalahan tidak diketahui'}`);
-                    console.error(`Error ${messageType}:`, result.message || 'Tidak ada pesan dari server');
-                }
-            } catch (error) {
-                toast.show('error', 'Error Koneksi!', `Gagal menghubungi server untuk ${messageType} data.`);
-                console.error(`Error saat ${messageType} data:`, error);
-            }
+    // Event search input
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            loadDataGuru(e.target.value);
         });
     }
-}
+
+    // Fungsi global untuk membuka modal tambah data
+    window.openAddModal = () => {
+        currentEditId = null; // Pastikan ini null untuk operasi tambah
+        modalTitle.textContent = 'Tambah Data Guru';
+        teacherForm.reset();
+        document.getElementById('teacherPassword').setAttribute('required', 'required'); // Password wajib saat tambah
+        teacherModal.classList.remove('hidden');
+        // console.log("Open Add Modal, currentEditId:", currentEditId); // Debugging
+    };
+
+    // Fungsi global untuk membuka modal edit data
+    window.openEditModal = async (id) => {
+        // console.log("openEditModal called with ID:", id); // Debugging: pastikan ID diterima
+        currentEditId = id;
+        modalTitle.textContent = 'Edit Data Guru';
+        teacherForm.reset(); // Bersihkan data sebelumnya
+        document.getElementById('teacherPassword').removeAttribute('required'); // Password tidak wajib saat edit
+
+        try {
+            const response = await fetch(`${apiUrl}?id=${id}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+            const guru = await response.json();
+
+            if (guru) {
+                document.getElementById('teacherName').value = guru.nama_guru;
+                document.getElementById('teacherGender').value = guru.jenis_kelamin;
+                document.getElementById('ID').value = guru.ID;
+                document.getElementById('teacherSubject').value = guru.mata_pelajaran;
+                document.getElementById('teacherWaliKelas').value = guru.wali_kelas;
+                document.getElementById('status').value = guru.status;
+                document.getElementById('teacherUsername').value = guru.username;
+                document.getElementById('teacherPassword').value = ''; // Jangan prefill password
+                teacherModal.classList.remove('hidden'); // Tampilkan modal
+                // console.log("Modal shown for editing:", guru); // Debugging
+            } else {
+                showToast('error', 'Data Tidak Ditemukan', 'Data guru tidak ditemukan untuk diedit.');
+                // console.error("Data guru tidak ditemukan untuk ID:", id); // Debugging
+            }
+        } catch (err) {
+            console.error('Error fetching guru data for edit:', err);
+            showToast('error', 'Gagal Ambil Data', 'Terjadi kesalahan saat mengambil data guru untuk diedit. Cek konsol browser.');
+        }
+    };
+
+    // Fungsi global untuk menutup modal
+    window.closeModal = () => {
+        teacherModal.classList.add('hidden');
+        currentEditId = null; // Pastikan ID direset setelah modal ditutup
+        teacherForm.reset(); // Reset form
+        document.getElementById('teacherPassword').setAttribute('required', 'required'); // Kembali ke wajib jika dibuka lagi
+    };
+
+    let guruToDeleteId = null; // Variabel untuk menyimpan ID guru yang akan dihapus
+
+    // Fungsi global untuk membuka modal konfirmasi hapus
+    window.openDeleteModal = (id) => {
+        // console.log("openDeleteModal called with ID:", id); // Debugging: pastikan ID diterima
+        guruToDeleteId = id;
+        document.getElementById('deleteModal').classList.remove('hidden');
+    };
+
+    // Fungsi global untuk menutup modal konfirmasi hapus
+    window.closeDeleteModal = () => {
+        document.getElementById('deleteModal').classList.add('hidden');
+        guruToDeleteId = null; // Reset ID yang akan dihapus
+    };
+
+    // Fungsi global untuk mengkonfirmasi dan melakukan penghapusan
+    window.confirmDelete = async () => {
+        if (!guruToDeleteId) { // Jika ID kosong, jangan lanjutkan
+            showToast('error', 'Gagal Hapus!', 'Tidak ada ID guru yang valid untuk dihapus.');
+            return;
+        }
+        // console.log("confirmDelete for ID:", guruToDeleteId); // Debugging: pastikan ID ada
+
+        try {
+            const formData = new FormData();
+            formData.append('id', guruToDeleteId);
+            formData.append('_method', 'DELETE'); // Override method ke DELETE
+
+            const response = await fetch(apiUrl, {
+                method: 'POST', // Selalu POST untuk FormData
+                body: formData // Mengirim FormData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                showToast('success', 'Berhasil!', result.message || 'Data berhasil dihapus.');
+                closeDeleteModal();
+                loadDataGuru(); // Refresh tabel
+            } else {
+                showToast('error', 'Gagal!', result.error || 'Operasi gagal.');
+                console.error('Error dari server saat menghapus:', result.error); // Log error dari server
+            }
+        } catch (err) {
+            console.error('Error saat menghapus:', err);
+            showToast('error', 'Kesalahan Jaringan!', 'Terjadi kesalahan saat menghapus data. Cek konsol browser.');
+        }
+    };
+});

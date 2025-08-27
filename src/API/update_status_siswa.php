@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $studentId = $input['studentId'] ?? null;
     $class = $input['class'] ?? null; // Kelas siswa saat ini (sebelum kenaikan/kelulusan)
     $isBulk = $input['isBulk'] ?? false;
-    $studentsToUpdate = $input['students'] ?? []; // Digunakan untuk bulk update
+    $studentsToUpdate = $input['studentsToUpdate'] ?? []; // Digunakan untuk bulk update
 
     $response = ['success' => false, 'message' => ''];
 
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response['message'] = 'ID Siswa tidak valid.';
         }
     } elseif ($action === 'promote') {
-        if ($isBulk && !empty($studentsToUpdate)) {
+        if ($isBulk) {
             // Logika untuk KENAIKAN KELAS MASSAL
             $updatedCount = 0;
             $failedUpdates = [];
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($studentsToUpdate as $student) {
                 $sId = mysqli_real_escape_string($conn, $student['id']);
                 $currentClass = mysqli_real_escape_string($conn, $student['class']);
-
+                
                 $newClass = null;
                 $newStatus = null;
 
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $update_query = "UPDATE siswa SET kelas = '$newClass', status_siswa = 'naik_kelas' WHERE nis = '$sId'";
                 }
-
+                
                 if (mysqli_query($conn, $update_query)) {
                     $updatedCount++;
                 } else {
@@ -75,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $response['message'] = 'Tidak ada siswa yang diperbarui atau semua gagal: ' . implode(', ', $failedUpdates);
             }
-        } elseif (!$isBulk && $studentId && $class) {
+
+        } else {
             // Logika untuk NAIK KELAS INDIVIDUAL
             if ($studentId && $class) {
                 $studentId = mysqli_real_escape_string($conn, $studentId);
@@ -92,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newStatus = 'naik_kelas';
                 }
 
-                $update_query = ""; 
+                $update_query = "";
                 if ($newStatus === 'lulus') {
                     // Update status siswa menjadi 'lulus'
                     $update_query = "UPDATE siswa SET status_siswa = 'lulus' WHERE nis = '$studentId'";
@@ -120,3 +121,4 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 mysqli_close($conn);
+?>

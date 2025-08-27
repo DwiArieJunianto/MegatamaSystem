@@ -5,7 +5,7 @@ header('Content-Type: application/json'); // Memberi tahu browser bahwa respons 
 
 // Cek apakah user sudah login
 if (!isset($_SESSION['guru_id'])|| !isset($_SESSION['kelas_wali'])) {
-    header("Location: ../../public/login.html");
+    header("Location: login.html");
     exit();
 }
 
@@ -18,7 +18,7 @@ $response = []; // Array untuk menyimpan semua data riwayat presensi
 $query_absen = "
     SELECT id_absen, id_guru, kelas, tanggal, jam_mulai, jam_selesai, dibuat_pada 
     FROM absen 
-    WHERE id_guru = '$id_guru'
+    WHERE kelas = '$kelas_wali'
     ORDER BY tanggal DESC, dibuat_pada DESC
 ";
 
@@ -29,7 +29,7 @@ if ($result_absen) {
         $id_presensi = $row_absen['id_absen'];
 
         // Untuk setiap presensi, ambil detail siswa yang absen
-        $query_siswa_absen = "SELECT nis, status FROM absen_siswa WHERE id_absen = '$id_presensi'";
+        $query_siswa_absen = "SELECT id_siswa, status FROM absen_siswa WHERE id_absen = '$id_presensi'";
         $result_siswa_absen = mysqli_query($conn, $query_siswa_absen);
 
         $students_status = [];
@@ -37,8 +37,8 @@ if ($result_absen) {
             while ($row_siswa = mysqli_fetch_assoc($result_siswa_absen)) {
                 // Untuk menampilkan nama siswa, kita perlu query tabel 'siswa'
                 // Diasumsikan Anda memiliki tabel 'siswa' dengan kolom 'id' dan 'name' serta 'gender'
-                $id_siswa = $row_siswa['nis'];
-                $query_get_student_info = "SELECT nama_siswa, jenis_kelamin FROM siswa WHERE nis = '$id_siswa'";
+                $id_siswa = $row_siswa['id_siswa'];
+                $query_get_student_info = "SELECT nama_siswa, jenis_kelamin FROM siswa WHERE id_siswa = '$id_siswa'";
                 $result_student_info = mysqli_query($conn, $query_get_student_info);
                 $student_info = mysqli_fetch_assoc($result_student_info);
 

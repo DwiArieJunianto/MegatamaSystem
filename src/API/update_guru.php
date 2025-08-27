@@ -1,13 +1,12 @@
 <?php
 include '../config/config.php';
 
-session_start();
-
 $id_guru = $_POST['id_guru'];
 $fullname = $_POST['fullname'];
 $nip = $_POST['id'];
 $gender = $_POST['gender'];
 $status = $_POST['status'];
+$subject = $_POST['subject']; // string dari combobox input
 
 $new_foto_name = null;
 
@@ -19,14 +18,9 @@ if (isset($_FILES['foto_profil']) && $_FILES['foto_profil']['error'] === UPLOAD_
     $file_ext = pathinfo($original_foto_name, PATHINFO_EXTENSION);
     $new_foto_name = $nip . '.' . $file_ext;
     $foto_path = '../img/guru/' . $new_foto_name;
-    $foto_url_to_save = 'img/guru/' . $new_foto_name;
 
-    $sql_get_old_photo = "SELECT foto_url FROM guru WHERE id_guru = ?";
-    $stmt_old_photo = $conn->prepare($sql_get_old_photo);
-    $stmt_old_photo->bind_param("i", $id_guru);
-    $stmt_old_photo->execute();
-    $result_old_photo = $stmt_old_photo->get_result();
-
+    $sql_get_old_photo = "SELECT foto_profil FROM guru WHERE id_guru = '$id_guru'";
+    $result_old_photo = $conn->query($sql_get_old_photo);
     if ($result_old_photo && $result_old_photo->num_rows > 0) {
         $row_old_photo = $result_old_photo->fetch_assoc();
         $old_foto_name = $row_old_photo['foto_profil'];
@@ -34,7 +28,6 @@ if (isset($_FILES['foto_profil']) && $_FILES['foto_profil']['error'] === UPLOAD_
             unlink('../img/guru/' . $old_foto_name);
         }
     }
-    $stmt_old_photo->close();
 
     if (!move_uploaded_file($foto_tmp, $foto_path)) {
         error_log("Error uploading file for guru_id: $id_guru, error: " . $_FILES['foto_profil']['error'] . " to " . $foto_path);
@@ -43,52 +36,72 @@ if (isset($_FILES['foto_profil']) && $_FILES['foto_profil']['error'] === UPLOAD_
 }
 
 // === Update data guru ===
-$sql = "UPDATE guru SET 
-            ID = ?, 
-            nama_guru = ?, 
-            jenis_kelamin = ?, 
-            status = ?"; // Tambahkan mata_pelajaran
+$query_parts = [];
+$query_parts[] = "ID='$nip'";
+$query_parts[] = "nama_guru='$fullname'";
+$query_parts[] = "gender='$gender'";
+$query_parts[] = "status='$status'";
 if ($new_foto_name !== null) {
-    $sql .= ", foto_url = ? ";
+    $query_parts[] = "foto_profil='$new_foto_name'";
 }
+$query = "UPDATE guru SET " . implode(', ', $query_parts) . " WHERE id_guru = '$id_guru'";
 
-$sql .= " WHERE id_guru = ?";
+// Eksekusi update guru
+if (isset($conn) && $conn->query($query)) {
 
-$stmt = $conn->prepare($sql);
+    // === Tambahan: proses bidang tugas ===
 
-$param_types = "ssss"; // ID, nama_guru, jenis_kelamin, status, mata_pelajaran
-$params = [&$nip, &$fullname, &$gender, &$status];
+    // 1. Cek apakah bidang tugas sudah ada di tabel
+    $subject = trim($subject);
+    $stmt = $conn->prepare("SELECT id_bidang FROM bidang_tugas WHERE nama_bidang = ?");
+    $stmt->bind_param("s", $subject);
+    $stmt->execute();
+    $stmt->store_result();
 
-// Jika wali_kelas bukan NULL atau kosong, tambahkan ke parameter
-if ($wali_kelas_value !== null && $wali_kelas_value !== '') {
-    $param_types .= "s"; // Tambah tipe string untuk wali_kelas
-    $params[] = &$wali_kelas_value;
-}
+    if ($stmt->num_rows > 0) {
+        $stmt->bind_result($id_bidang);
+        $stmt->fetch();
+    } else {
+        // Jika belum ada, tambahkan ke tabel
+        $stmt_insert = $conn->prepare("INSERT INTO bidang_tugas (nama_bidang) VALUES (?)");
+        $stmt_insert->bind_param("s", $subject);
+        $stmt_insert->execute();
+        $id_bidang = $stmt_insert->insert_id;
+        $stmt_insert->close();
+    }
+    $stmt->close();
 
-if ($new_foto_name !== null) {
-    $param_types .= "s";
-    $params[] = &$foto_url_to_save; // <-- Ini yang akan disimpan di database
-}
+    // 2. Hapus bidang tugas lama dari guru
+    $conn->query("DELETE FROM guru_bidang_tugas WHERE id_guru = '$id_guru'");
 
-$param_types .= "i"; // id_guru (integer) selalu terakhir
-$params[] = &$id_guru;
+    // 3. Masukkan yang baru
+    $stmt_assign = $conn->prepare("INSERT INTO guru_bidang_tugas (id_guru, id_bidang) VALUES (?, ?)");
+    $stmt_assign->bind_param("ii", $id_guru, $id_bidang);
+    $stmt_assign->execute();
+    $stmt_assign->close();
 
-call_user_func_array([$stmt, 'bind_param'], array_merge([$param_types], $params));
-
-if ($stmt->execute()) {
-    // Re-evaluasi dan perbarui variabel sesi untuk 'is_wali_kelas_9_or_12'
+    // --- MULAI PERUBAHAN DI SINI ---
+    // Re-evaluasi dan perbarui variabel sesi setelah bidang_tugas diperbarui
+    session_start(); // Pastikan sesi sudah dimulai untuk akses $_SESSION
     $_SESSION['is_wali_kelas_9_or_12'] = false; // Reset dulu
 
-    if ($wali_kelas_value !== null && $wali_kelas_value !== '') {
-        if (preg_match('/Wali Kelas (9|12)/i', $wali_kelas_value, $matches)) {
-            $_SESSION['is_wali_kelas_9_or_12'] = true;
+    $id_bidang_query = mysqli_query($conn, "SELECT id_bidang FROM guru_bidang_tugas WHERE id_guru = '$id_guru'");
+    if ($id_bidang_query && mysqli_num_rows($id_bidang_query) > 0) {
+        $id_bidang_row = mysqli_fetch_assoc($id_bidang_query);
+        $id_bidang_wali = $id_bidang_row['id_bidang'];
+
+        $nama_bidang_query = mysqli_query($conn, "SELECT nama_bidang FROM bidang_tugas WHERE id_bidang = '$id_bidang_wali'");
+        if ($nama_bidang_query && mysqli_num_rows($nama_bidang_query) > 0) {
+            $nama_bidang = mysqli_fetch_assoc($nama_bidang_query)['nama_bidang'];
+            if (preg_match('/Wali Kelas (9|12)/', $nama_bidang, $matches)) {
+                $_SESSION['is_wali_kelas_9_or_12'] = true;
+            }
         }
     }
+    // --- AKHIR PERUBAHAN ---
 
-    echo "Berhasil memperbarui profil guru.";
+    echo "Berhasil memperbarui profil dan bidang tugas.";
 } else {
-    echo "Gagal memperbarui profil di database: " . $stmt->error;
+    echo "Gagal memperbarui profil di database: " . (isset($conn) ? $conn->error : "Koneksi database belum diinisialisasi.");
 }
-
-$stmt->close();
-$conn->close();
+?>

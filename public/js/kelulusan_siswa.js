@@ -1,605 +1,555 @@
 // kelulusan_siswa.js
+fetch('../src/API/get_siswa.php')
 let studentData = []; // Deklarasikan secara global
+let currentPage = 1;
+const itemsPerPage = 10; // Sesuaikan dengan kebutuhan pagination Anda
+let currentAction = null;
+let currentStudentNis = null; // Menggunakan NIS sebagai ID siswa
+let isBulkPromotion = false;
 
-fetch('../src/API//get_siswa.php')
-  .then(response => response.json())
-  .then(data => {
-    // Periksa apakah data adalah objek dengan kunci kelas, lalu ratakan
-    if (typeof data === 'object' && !Array.isArray(data)) {
-        studentData = Object.values(data).flat();
-    } else if (Array.isArray(data)) {
-        studentData = data; // Jika data sudah berupa array datar
-    } else {
-        console.error('Format data tidak terduga:', data);
-        toast.show('error', 'Gagal Memuat Data', 'Format data siswa tidak sesuai.');
+// Inisialisasi Toast Notification
+class ToastNotification {
+    constructor() {
+        this.toastElement = document.getElementById('toast-notification');
+        if (!this.toastElement) {
+            console.error("Elemen HTML dengan ID 'toast-notification' tidak ditemukan. ToastNotification tidak dapat diinisialisasi.");
+            return;
+        }
+        this.toastIcon = document.getElementById('toast-icon');
+        this.toastTitle = document.getElementById('toast-title');
+        this.toastMessage = document.getElementById('toast-message');
+        this.toastClose = document.getElementById('toast-close');
+        this.toastContainer = this.toastElement.querySelector('.bg-white');
+
+        this.isVisible = false;
+        this.hideTimeout = null;
+
+        if (this.toastElement) {
+            this.setupEventListeners();
+        }
+    }
+
+    setupEventListeners() {
+        if (this.toastClose) {
+            this.toastClose.addEventListener('click', () => {
+                this.hide();
+            });
+        }
+    }
+
+    show(type, title, message) {
+        if (!this.toastElement) return;
+
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+        }
+
+        this.setContent(type, title, message);
+
+        this.toastElement.classList.remove('toast-exit', 'toast-enter');
+        this.toastElement.classList.add('toast-show');
+        this.isVisible = true;
+
+        this.autoHide();
+    }
+
+    hide() {
+        if (!this.isVisible || !this.toastElement) return;
+
+        if (this.hideTimeout) {
+            clearTimeout(this.hideTimeout);
+        }
+
+        this.toastElement.classList.remove('toast-show');
+        this.toastElement.classList.add('toast-exit');
+        this.isVisible = false;
+
+        setTimeout(() => {
+            this.toastElement.classList.remove('toast-exit');
+            this.toastElement.classList.add('toast-enter');
+        }, 300);
+    }
+
+    autoHide() {
+        this.hideTimeout = setTimeout(() => {
+            this.hide();
+        }, 5000);
+    }
+
+    setContent(type, title, message) {
+        if (!this.toastContainer || !this.toastIcon || !this.toastTitle || !this.toastMessage) return;
+
+        this.toastContainer.className = this.toastContainer.className.replace(/border-l-(green|red|yellow|blue|gray)-500/g, '');
+
+        switch (type) {
+            case 'success':
+                this.toastIcon.innerHTML = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
+                this.toastContainer.classList.add('border-l-green-500');
+                break;
+            case 'error':
+                this.toastIcon.innerHTML = '<i class="fas fa-times-circle text-red-500 text-xl"></i>';
+                this.toastContainer.classList.add('border-l-red-500');
+                break;
+            case 'warning':
+                this.toastIcon.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>';
+                this.toastContainer.classList.add('border-l-yellow-500');
+                break;
+            case 'info':
+                this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-blue-500 text-xl"></i>';
+                this.toastContainer.classList.add('border-l-blue-500');
+                break;
+            default:
+                this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-gray-500 text-xl"></i>';
+                this.toastContainer.classList.add('border-l-gray-500');
+        }
+
+        this.toastTitle.textContent = title;
+        this.toastMessage.textContent = message;
+    }
+}
+
+const toast = new ToastNotification();
+
+// --- FETCH DATA SISWA SESUAI KELAS WALI KELAS ---
+async function fetchStudentData() {
+    // assignedClassNumber berasal dari PHP yang disuntikkan ke HTML
+    // Pastikan variabel ini ada dan berisi nilai yang benar
+    if (typeof assignedClassNumber === 'undefined' || assignedClassNumber === null) {
+        toast.show('error', 'Akses Ditolak', 'Anda tidak ditugaskan sebagai wali kelas atau kelas tidak ditemukan.');
+        document.getElementById("current-class-display").textContent = "Tidak Ditemukan";
         return;
     }
-    console.log("Semua Siswa:", studentData);
 
-    // Filter studentData berdasarkan kelas jika ada filter kelas yang aktif (misalnya untuk guru)
-    // Bagian ini mengasumsikan 'teacherClass' akan ditetapkan secara dinamis setelah login
-    // Sebagai contoh, mari kita asumsikan variabel 'loggedInTeacherClass' ada
-    // let loggedInTeacherClass = '9'; // Contoh: atur ini secara dinamis berdasarkan sesi login
-    // if (loggedInTeacherClass) {
-    //     studentData = studentData.filter(student => student.class === loggedInTeacherClass);
-    //     console.log(`Siswa yang difilter untuk kelas ${loggedInTeacherClass}:`, studentData);
-    // }
+    // Tampilkan kelas yang sedang aktif di judul
+    document.getElementById("current-class-display").textContent = `Kelas ${assignedClassNumber}`;
 
-    renderStudentData(); // Sekarang renderStudentData dapat mengakses studentData global
-  })
-  .catch(error => {
-    console.error('Error saat mengambil data siswa:', error);
-    toast.show('error', 'Error Jaringan', 'Tidak dapat terhubung ke server untuk memuat data siswa.');
-  });
+    // Perbaikan URL: Mengirim kelas ke PHP API get_siswa.php
+    const url = `../src/API/get_siswa.php?kelas=${assignedClassNumber}`; 
+    
+    toast.show('info', 'Memuat Data', `Mengambil data siswa kelas ${assignedClassNumber}...`);
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+        const result = await response.json(); // Menggunakan 'result' karena PHP bisa mengembalikan 'success' dan 'data'
+
+        if (result.success) { // Periksa properti 'success' dari respons PHP
+            // Di sini, kita asumsikan 'result.data' adalah array siswa
+            // Tambahkan status default 'pending' jika belum ada dari backend
+            studentData = result.data.map(s => ({ ...s, status: s.status || 'pending' }));
+            toast.show('success', 'Data Berhasil', `Berhasil memuat ${studentData.length} siswa.`);
+        } else {
+            // Jika success false, tampilkan pesan error dari PHP
+            toast.show('error', 'Gagal Memuat', result.message || 'Terjadi kesalahan tidak diketahui.');
+            studentData = [];
+        }
+        
+        renderStudentData(); // Render data setelah berhasil diambil
+    } catch (error) {
+        console.error('Error fetching student data:', error);
+        toast.show('error', 'Error Jaringan', 'Tidak dapat terhubung ke server atau terjadi kesalahan saat memuat data siswa.');
+        studentData = []; // Kosongkan data jika ada error
+        renderStudentData(); // Render ulang tabel untuk menampilkan pesan kosong
+    }
+}
 
 function renderStudentData() {
-  const tableBody = document.getElementById("student-data")
-  const paginationInfo = document.getElementById("pagination-info")
-  const paginationContainer = document.getElementById("pagination-numbers")
-  const prevButton = document.getElementById("prev-page")
-  const nextButton = document.getElementById("next-page")
+  // Pastikan ID ini sesuai dengan HTML: <tbody id="student-data">
+  const tableBody = document.getElementById("student-data");
+  const paginationInfo = document.getElementById("pagination-info");
+  const paginationContainer = document.getElementById("pagination-numbers");
+  const prevButton = document.getElementById("prev-page");
+  const nextButton = document.getElementById("next-page");
 
-  tableBody.innerHTML = ""
+  tableBody.innerHTML = "";
 
   if (studentData.length === 0) {
-    const row = document.createElement("tr")
+    const row = document.createElement("tr");
     row.innerHTML = `
-            <td colspan="7" class="text-center text-gray-500 py-4">
-                Belum ada data siswa
+            <td colspan="6" class="text-center text-gray-500 py-4">
+                Belum ada data siswa untuk kelas ini.
             </td>
-        `
-    tableBody.appendChild(row)
-    paginationInfo.textContent = "Tidak ada data"
-    paginationContainer.innerHTML = ""
-    prevButton.style.display = "none"
-    nextButton.style.display = "none"
-    return
+        `;
+    tableBody.appendChild(row);
+    paginationInfo.textContent = "Tidak ada data";
+    paginationContainer.innerHTML = "";
+    prevButton.disabled = true; // Langsung atur disabled
+    nextButton.disabled = true; // Langsung atur disabled
+    return;
   }
 
   // Tampilkan pagination jika data ada
-  prevButton.style.display = ""
-  nextButton.style.display = ""
+  prevButton.style.display = "";
+  nextButton.style.display = "";
 
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = Math.min(startIndex + itemsPerPage, studentData.length)
-  const paginatedData = studentData.slice(startIndex, endIndex)
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, studentData.length);
+  const paginatedData = studentData.slice(startIndex, endIndex);
 
-  paginationInfo.textContent = `Menampilkan ${startIndex + 1}-${endIndex} dari ${studentData.length} data`
+  paginationInfo.textContent = `Menampilkan ${startIndex + 1}-${endIndex} dari ${studentData.length} data`;
 
   paginatedData.forEach((student, index) => {
-    const row = document.createElement("tr")
-    row.className = "table-row"
+    const row = document.createElement("tr");
+    row.className = "table-row hover:bg-gray-50"; // Tambah kelas hover
 
-    let statusBadge = ""
-    let actionButtons = ""
+    let statusBadge = "";
+    let actionButtons = "";
 
-    if (student.status === "promote") {
-      statusBadge = `<span class="badge success">Lulus</span>`
-    } else if (student.status === "not_promote") {
-      statusBadge = `<span class="badge danger">Tidak Lulus</span>`
-    } else {
+    // Sesuaikan status dari database (misal 'Lulus', 'Tidak Lulus', atau 'pending' jika belum ada)
+    // Di PHP get_siswa.php, kita menambahkan 'status_siswa' sebagai 'status'.
+    // Jika siswa sudah memiliki status 'Lulus' atau 'Tidak Lulus' di DB, gunakan itu.
+    // Jika tidak, default ke 'pending' seperti di inisialisasi studentData.
+    if (student.status === "Lulus") { // Sesuaikan dengan nilai enum di DB jika ada
+      statusBadge = `<span class="px-2 py-1 text-xs font-medium bg-green-200 text-green-800 rounded-full">Lulus</span>`;
+    } else if (student.status === "Tidak Lulus") { // Sesuaikan dengan nilai enum di DB jika ada
+      statusBadge = `<span class="px-2 py-1 text-xs font-medium bg-red-200 text-red-800 rounded-full">Tidak Lulus</span>`;
+    } else { // Jika status_siswa di DB NULL atau tidak 'Lulus'/'Tidak Lulus', anggap 'pending'
       actionButtons = `
                 <div class="flex space-x-2">
-                    <button onclick="showConfirmationModal(${student.id}, 'promote')" class="btn-success">
+                    <button onclick="showConfirmationModal('${student.nis}', 'Lulus')" class="btn-success px-3 py-1.5 text-sm rounded-md shadow-sm">
                         Lulus
                     </button>
-                    <button onclick="showConfirmationModal(${student.id}, 'not_promote')" class="btn-danger">
+                    <button onclick="showConfirmationModal('${student.nis}', 'Tidak Lulus')" class="btn-danger px-3 py-1.5 text-sm rounded-md shadow-sm">
                         Tidak Lulus
                     </button>
                 </div>
-            `
+            `;
     }
 
     row.innerHTML = `
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">${startIndex + index + 1}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">${student.name}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">${student.gender}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">${student.nis}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">${student.class}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-gray-500">${student.phone}</td>
-            <td class="px-4 py-3 whitespace-nowrap">
-                ${statusBadge}${actionButtons}
-            </td>
-        `
+            <td class="px-4 py-3 whitespace-nowrap text-gray-700">${startIndex + index + 1}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-700">${student.name}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-700">${student.nis}</td>
+            <td class="px-4 py-3 whitespace-nowrap text-gray-700">${student.class}</td>
+            <td class="px-4 py-3 whitespace-nowrap">${statusBadge}</td>
+            <td class="px-4 py-3 whitespace-nowrap">${actionButtons}</td>
+        `;
 
-    tableBody.appendChild(row)
-  })
+    tableBody.appendChild(row);
+  });
 
-  renderPagination()
+  renderPagination();
 }
 
-// Variabel paginasi
-let currentPage = 1
-const itemsPerPage = 10
-let currentAction = null
-let currentStudentId = null
-let isBulkPromotion = false
-
-// Fungsionalitas sidebar yang dapat dialihkan
+// Fungsionalitas sidebar yang dapat dialihkan (tidak berubah)
 function initializeSidebar() {
-  const toggleBtn = document.getElementById("toggle-sidebar")
-  const sidebar = document.getElementById("sidebar")
-  const mainContent = document.getElementById("main-content")
-  const overlay = document.getElementById("overlay")
+  const toggleBtn = document.getElementById("toggle-sidebar");
+  const sidebar = document.getElementById("sidebar");
+  const mainContent = document.getElementById("main-content");
+  const overlay = document.getElementById("overlay");
 
-  // Periksa apakah semua elemen ada
   if (!toggleBtn || !sidebar || !mainContent || !overlay) {
     console.error("Beberapa elemen tidak ditemukan:", {
       toggleBtn: !!toggleBtn,
       sidebar: !!sidebar,
       mainContent: !!mainContent,
       overlay: !!overlay,
-    })
-    return
+    });
+    return;
   }
 
-  // Fungsi untuk mengatur ulang semua kelas dan gaya
   function resetSidebarStates() {
-    sidebar.classList.remove("collapsed", "mobile-open")
-    overlay.classList.remove("show")
-    // Atur ulang gaya inline jika ada
-    sidebar.style.transform = ""
+    sidebar.classList.remove("collapsed", "mobile-open");
+    overlay.classList.remove("show");
+    sidebar.style.transform = "";
   }
 
-  // Fungsi untuk mengatur tata letak desktop
   function setupDesktopLayout() {
-    resetSidebarStates()
-    // Di desktop, sidebar default terbuka dan konten utama menyesuaikan
-    mainContent.classList.remove("expanded")
-    sidebar.classList.remove("collapsed")
+    resetSidebarStates();
+    mainContent.classList.remove("expanded");
+    sidebar.classList.remove("collapsed");
   }
 
-  // Fungsi untuk mengatur tata letak seluler
   function setupMobileLayout() {
-    resetSidebarStates()
-    // Di seluler, sidebar default tertutup
-    sidebar.classList.add("collapsed")
-    mainContent.classList.add("expanded")
+    resetSidebarStates();
+    sidebar.classList.add("collapsed");
+    mainContent.classList.add("expanded");
   }
 
-  // Fungsi untuk membuka sidebar
   function openSidebar() {
     if (window.innerWidth <= 768) {
-      // Seluler: gunakan kelas mobile-open
-      sidebar.classList.remove("collapsed")
-      sidebar.classList.add("mobile-open")
-      overlay.classList.add("show")
+      sidebar.classList.remove("collapsed");
+      sidebar.classList.add("mobile-open");
+      overlay.classList.add("show");
     } else {
-      // Desktop: hilangkan kelas collapsed
-      sidebar.classList.remove("collapsed")
-      mainContent.classList.remove("expanded")
+      sidebar.classList.remove("collapsed");
+      mainContent.classList.remove("expanded");
     }
   }
 
-  // Fungsi untuk menutup sidebar
   function closeSidebar() {
     if (window.innerWidth <= 768) {
-      // Seluler: tutup dan hilangkan overlay
-      sidebar.classList.add("collapsed")
-      sidebar.classList.remove("mobile-open")
-      overlay.classList.remove("show")
+      sidebar.classList.add("collapsed");
+      sidebar.classList.remove("mobile-open");
+      overlay.classList.remove("show");
     } else {
-      // Desktop: sembunyikan sidebar dan perluas konten utama
-      sidebar.classList.add("collapsed")
-      mainContent.classList.add("expanded")
+      sidebar.classList.add("collapsed");
+      mainContent.classList.add("expanded");
     }
   }
 
-  // Fungsi untuk memeriksa status sidebar (terbuka/tertutup)
   function isSidebarOpen() {
     if (window.innerWidth <= 768) {
-      return sidebar.classList.contains("mobile-open")
+      return sidebar.classList.contains("mobile-open");
     } else {
-      return !sidebar.classList.contains("collapsed")
+      return !sidebar.classList.contains("collapsed");
     }
   }
 
-  // Fungsi untuk menangani perilaku responsif
   function handleResponsiveLayout() {
-    const currentWidth = window.innerWidth
-
+    const currentWidth = window.innerWidth;
     if (currentWidth <= 768) {
-      // Beralih ke seluler
-      setupMobileLayout()
+      setupMobileLayout();
     } else {
-      // Beralih ke desktop
-      setupDesktopLayout()
+      setupDesktopLayout();
     }
-
-    console.log(`Tata letak diubah menjadi: ${currentWidth <= 768 ? "Seluler" : "Desktop"} (${currentWidth}px)`)
   }
 
-  // Alihkan sidebar
   toggleBtn.addEventListener("click", () => {
-    console.log("Tombol toggle diklik, lebar jendela:", window.innerWidth)
-    console.log("Status sidebar terbuka:", isSidebarOpen())
-
     if (isSidebarOpen()) {
-      closeSidebar()
-      console.log("Sidebar ditutup")
+      closeSidebar();
     } else {
-      openSidebar()
-      console.log("Sidebar dibuka")
+      openSidebar();
     }
-  })
+  });
 
-  // Tutup sidebar saat mengklik overlay (hanya di seluler)
   overlay.addEventListener("click", () => {
-    console.log("Overlay diklik - menutup sidebar")
-    closeSidebar()
-  })
+    closeSidebar();
+  });
 
-  // Tangani perubahan ukuran jendela
-  let resizeTimeout
+  let resizeTimeout;
   window.addEventListener("resize", () => {
-    // Debounce peristiwa resize untuk kinerja
-    clearTimeout(resizeTimeout)
+    clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
-      handleResponsiveLayout()
-    }, 100)
-  })
+      handleResponsiveLayout();
+    }, 100);
+  });
 
-  // Inisialisasi tata letak berdasarkan ukuran jendela saat ini
-  handleResponsiveLayout()
-
-  console.log("Sidebar responsif berhasil diinisialisasi")
+  handleResponsiveLayout();
 }
 
-// Fungsi tambahan untuk debugging
-function debugSidebar() {
-  const sidebar = document.getElementById("sidebar")
-  const mainContent = document.getElementById("main-content")
-  const overlay = document.getElementById("overlay")
+// LOGIKA UNTUK MODAL KONFIRMASI
+function showConfirmationModal(studentNis, action) {
+    const student = studentData.find((s) => String(s.nis) === String(studentNis));
+    const modal = document.getElementById("confirmation-modal");
+    const message = document.getElementById("modal-message-naik-kelas");
+    const confirmButton = document.getElementById("confirm-action");
 
-  console.log("=== INFO DEBUG SIDEBAR ===")
-  console.log("Lebar jendela:", window.innerWidth)
-  console.log("Jenis perangkat:", window.innerWidth <= 768 ? "Seluler" : "Desktop")
-  console.log("Kelas sidebar:", sidebar.className)
-  console.log("Kelas konten utama:", mainContent.className)
-  console.log("Kelas overlay:", overlay.className)
-  console.log("Transformasi komputasi sidebar:", window.getComputedStyle(sidebar).transform)
-}
-
-// LOGIKA UNTUK NOTIFIKASI TOAST
-class ToastNotification {
-  constructor() {
-    this.toastElement = document.getElementById('toast-notification');
-    // Pastikan toastElement ditemukan sebelum mencoba mengkueri anak-anaknya
-    if (!this.toastElement) {
-        console.error("Elemen HTML dengan ID 'toast-notification' tidak ditemukan. ToastNotification tidak dapat diinisialisasi.");
-        return; // Keluar dari konstruktor jika elemen null
-    }
-    this.toastIcon = document.getElementById('toast-icon');
-    this.toastTitle = document.getElementById('toast-title');
-    this.toastMessage = document.getElementById('toast-message');
-    this.toastClose = document.getElementById('toast-close');
-    this.toastContainer = this.toastElement.querySelector('.bg-white'); // Baris ini menyebabkan kesalahan
-
-    this.isVisible = false;
-    this.hideTimeout = null;
-
-    // Hanya siapkan pendengar peristiwa jika toastElement berhasil ditemukan
-    if (this.toastElement) {
-      this.setupEventListeners();
-    }
-  }
-
-  setupEventListeners() {
-    // Pendengar peristiwa untuk tombol tutup
-    if (this.toastClose) { // Periksa apakah toastClose ada sebelum menambahkan pendengar
-      this.toastClose.addEventListener('click', () => {
-        this.hide();
-      });
-    }
-
-
-    // Sembunyikan otomatis setelah 5 detik
-    this.toastElement.addEventListener('transitionend', (e) => {
-      if (e.target === this.toastElement && this.isVisible) {
-        this.autoHide();
-      }
-    });
-  }
-
-  show(type, title, message) {
-    if (!this.toastElement) { // Cegah menampilkan jika elemen toast tidak diinisialisasi
-        console.error("Elemen notifikasi toast tidak tersedia.");
+    if (!student) {
+        console.error("Siswa tidak ditemukan untuk NIS:", studentNis);
+        toast.show('error', 'Kesalahan', 'Data siswa tidak ditemukan.');
         return;
     }
-    // Hapus timeout sebelumnya jika ada
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout);
-    }
-
-    // Atur konten toast
-    this.setContent(type, title, message);
-
-    // Atur ulang kelas
-    this.toastElement.classList.remove('toast-exit', 'toast-show');
-    this.toastElement.classList.add('toast-enter');
-
-    // Paksa reflow untuk memastikan kelas diterapkan
-    this.toastElement.offsetHeight;
-
-    // Tampilkan toast dengan animasi
-    setTimeout(() => {
-      this.toastElement.classList.remove('toast-enter');
-      this.toastElement.classList.add('toast-show');
-      this.isVisible = true;
-    }, 10);
-  }
-
-  hide() {
-    if (!this.isVisible || !this.toastElement) return; // Tambahkan pemeriksaan untuk toastElement
-
-    // Hapus timeout sembunyikan otomatis
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout);
-    }
-
-    // Sembunyikan dengan animasi
-    this.toastElement.classList.remove('toast-show');
-    this.toastElement.classList.add('toast-exit');
-    this.isVisible = false;
-
-    // Atur ulang ke posisi awal setelah animasi selesai
-    setTimeout(() => {
-      this.toastElement.classList.remove('toast-exit');
-      this.toastElement.classList.add('toast-enter');
-    }, 300);
-  }
-
-  autoHide() {
-    this.hideTimeout = setTimeout(() => {
-      this.hide();
-    }, 5000); // Sembunyikan otomatis setelah 5 detik
-  }
-
-  setContent(type, title, message) {
-    if (!this.toastContainer || !this.toastIcon || !this.toastTitle || !this.toastMessage) {
-        console.error("Elemen konten toast tidak tersedia.");
+    if (!modal || !message || !confirmButton) {
+        console.error("Elemen modal tidak ditemukan untuk modal konfirmasi.");
         return;
     }
-    // Atur ulang warna batas
-    this.toastContainer.className = this.toastContainer.className.replace(/border-l-(green|red|yellow|blue)-500/g, '');
 
-    // Atur ikon dan warna berdasarkan tipe
-    switch (type) {
-      case 'success':
-        this.toastIcon.innerHTML = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
-        this.toastContainer.classList.add('border-l-green-500');
-        break;
-      case 'error':
-        this.toastIcon.innerHTML = '<i class="fas fa-times-circle text-red-500 text-xl"></i>';
-        this.toastContainer.classList.add('border-l-red-500');
-        break;
-      case 'warning':
-        this.toastIcon.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>';
-        this.toastContainer.classList.add('border-l-yellow-500');
-        break;
-      case 'info':
-        this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-blue-500 text-xl"></i>';
-        this.toastContainer.classList.add('border-l-blue-500');
-        break;
-      default:
-        this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-gray-500 text-xl"></i>';
-        this.toastContainer.classList.add('border-l-gray-500');
-    }
+    currentStudentNis = studentNis; // Simpan NIS
+    currentAction = action;
 
-    this.toastTitle.textContent = title;
-    this.toastMessage.textContent = message;
-  }
+    const actionText = action === "Lulus" ? "lulus" : "tidak lulus";
+    message.textContent = `Apakah Anda yakin ingin menetapkan status ${actionText} untuk siswa ${student.name}?`;
+
+    confirmButton.onclick = () => confirmAction();
+
+    modal.classList.add("show");
 }
 
-// Inisialisasi notifikasi toast
-const toast = new ToastNotification();
-
-// Tampilkan modal konfirmasi
-function showConfirmationModal(studentId, action) {
-  console.log(studentId)
-  const student = studentData.find((s) => s.id == studentId) // longgar, bisa number atau string
-  const modal = document.getElementById("confirmation-modal")
-  const message = document.getElementById("modal-message-naik-kelas")
-  const confirmButton = document.getElementById("confirm-action")
-
-  if (!student) {
-      console.error("Siswa tidak ditemukan untuk ID:", studentId);
-      toast.show('error', 'Kesalahan', 'Data siswa tidak ditemukan.');
-      return;
-  }
-  if (!modal || !message || !confirmButton) {
-      console.error("Elemen modal tidak ditemukan untuk modal konfirmasi.");
-      return;
-  }
-
-  currentStudentId = studentId
-  currentAction = action
-
-  const actionText = action === "promote" ? "lulus" : "tidak lulus"
-  message.textContent = `Apakah Anda yakin ingin menetapkan status ${actionText} untuk siswa ${student.name}?`
-
-  confirmButton.onclick = () => confirmAction()
-
-  modal.classList.add("show")
-}
-
-// Tampilkan modal konfirmasi untuk kenaikan kelas massal
 function showBulkPromotionModal() {
-  const modal = document.getElementById("confirmation-modal")
-  const message = document.getElementById("modal-message-naik-kelas")
-  const subMessage = document.getElementById("modal-submessage-naik-kelas")
-  const confirmButton = document.getElementById("confirm-action")
+    const modal = document.getElementById("confirmation-modal");
+    const message = document.getElementById("modal-message-naik-kelas");
+    const confirmButton = document.getElementById("confirm-action");
 
-  if (!modal || !message || !confirmButton) {
-    console.error("Elemen modal tidak ditemukan")
-    return
-  }
-
-  // Hitung hanya siswa yang masih tertunda
-  const pendingStudents = studentData.filter((student) => student.status === "pending")
-
-  // Jika tidak ada siswa yang tertunda, tampilkan pesan khusus
-  if (pendingStudents.length === 0) {
-    message.textContent = "Tidak ada siswa yang perlu diluluskan."
-
-    // Ubah tombol konfirmasi menjadi "Tutup"
-    const newConfirmButton = confirmButton.cloneNode(true)
-    confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton)
-
-    document.getElementById("confirm-action").textContent = "Tutup"
-    document.getElementById("confirm-action").addEventListener("click", closeModal)
-
-    modal.classList.add("show")
-    return
-  }
-
-  isBulkPromotion = true
-  currentAction = "promote"
-  currentStudentId = null
-
-  message.textContent = `Tindakan ini akan menetapkan status "Lulus" untuk ${pendingStudents.length} siswa yang belum diproses.`
-
-  // "Hapus pendengar peristiwa lama (jika ada), lalu tambahkan pendengar peristiwa yang baru."
-  const newConfirmButton = confirmButton.cloneNode(true)
-  confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton)
-
-  // Atur ulang teks tombol konfirmasi
-  document.getElementById("confirm-action").textContent = "Konfirmasi"
-  document.getElementById("confirm-action").addEventListener("click", confirmBulkAction)
-
-  modal.classList.add("show")
-}
-
-// Tutup modal
-function closeModal() {
-  const modal = document.getElementById("confirmation-modal")
-  if (modal) { // Tambahkan pemeriksaan null untuk modal
-    modal.classList.remove("show")
-  }
-  currentStudentId = null
-  currentAction = null
-  isBulkPromotion = false
-
-  // Hapus subpesan
-  const subMessage = document.getElementById("modal-submessage-naik-kelas")
-  if (subMessage) {
-    subMessage.textContent = ""
-  }
-}
-
-// Konfirmasi tindakan
-function confirmAction() {
-  if (currentStudentId && currentAction) {
-    const studentIndex = studentData.findIndex((s) => s.id == currentStudentId)
-    if (studentIndex !== -1) {
-      const student = studentData[studentIndex]
-
-      // Kirim ke backend
-      fetch('../src/API/update_status_siswa.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentId: student.id,
-          action: currentAction,
-          class: student.class // tambahkan ini juga karena PHP butuh untuk kenaikan
-        })
-
-      })
-        .then(res => res.json())
-        .then(response => {
-          if (response.success) {
-            studentData[studentIndex].status = currentAction
-            renderStudentData()
-
-            if (currentAction === 'promote') {
-              toast.show('success', 'Berhasil!', `${student.name} berhasil dinyatakan lulus!`)
-            } else if (currentAction === 'not_promote') {
-              toast.show('info', 'Status Diperbarui!', `${student.name} dinyatakan tidak lulus.`)
-            }
-          } else {
-            toast.show('error', 'Gagal!', response.message || 'Terjadi kesalahan saat menyimpan.')
-          }
-        })
-        .catch(err => {
-          console.error(err)
-          toast.show('error', 'Gagal!', 'Gagal menghubungi server.')
-        })
-        .finally(() => {
-          closeModal()
-        })
+    if (!modal || !message || !confirmButton) {
+        console.error("Elemen modal tidak ditemukan");
+        return;
     }
-  } else {
-    closeModal()
-  }
+
+    // Filter siswa yang statusnya belum 'Lulus' atau 'Tidak Lulus'
+    const pendingStudents = studentData.filter((student) => student.status !== "Lulus" && student.status !== "Tidak Lulus");
+
+    if (pendingStudents.length === 0) {
+        message.textContent = "Tidak ada siswa yang perlu diproses kelulusannya.";
+        
+        const newConfirmButton = confirmButton.cloneNode(true);
+        confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
+        document.getElementById("confirm-action").textContent = "Tutup";
+        document.getElementById("confirm-action").addEventListener("click", closeModal);
+
+        modal.classList.add("show");
+        return;
+    }
+
+    isBulkPromotion = true;
+    currentAction = "Lulus"; // Aksi massal selalu untuk "Lulus"
+    currentStudentNis = null;
+
+    message.textContent = `Tindakan ini akan menetapkan status "Lulus" untuk ${pendingStudents.length} siswa yang belum diproses.`;
+
+    const newConfirmButton = confirmButton.cloneNode(true);
+    confirmButton.parentNode.replaceChild(newConfirmButton, confirmButton);
+    document.getElementById("confirm-action").textContent = "Konfirmasi";
+    document.getElementById("confirm-action").addEventListener("click", confirmBulkAction);
+
+    modal.classList.add("show");
 }
 
+function closeModal() {
+    const modal = document.getElementById("confirmation-modal");
+    if (modal) {
+        modal.classList.remove("show");
+    }
+    currentStudentNis = null;
+    currentAction = null;
+    isBulkPromotion = false;
+
+    const subMessage = document.getElementById("modal-submessage-naik-kelas");
+    if (subMessage) {
+        subMessage.textContent = "";
+    }
+}
+
+// Konfirmasi tindakan (single student)
+async function confirmAction() {
+    if (currentStudentNis && currentAction) {
+        const studentIndex = studentData.findIndex((s) => String(s.nis) === String(currentStudentNis));
+        if (studentIndex !== -1) {
+            const student = studentData[studentIndex];
+            
+            // Kirim pembaruan status ke server
+            const updateSuccess = await sendStatusUpdateToServer(student.nis, currentAction);
+
+            if (updateSuccess) {
+                studentData[studentIndex].status = currentAction; // Update status di frontend setelah berhasil di server
+                renderStudentData(); // Render ulang tabel untuk menampilkan perubahan
+
+                if (currentAction === 'Lulus') {
+                    toast.show('success', 'Berhasil!', `${student.name} berhasil dinyatakan lulus!`);
+                } else if (currentAction === 'Tidak Lulus') {
+                    toast.show('info', 'Status Diperbarui!', `${student.name} dinyatakan tidak lulus.`);
+                }
+            } else {
+                toast.show('error', 'Gagal!', `Gagal memperbarui status ${student.name}.`);
+            }
+        }
+    }
+    closeModal();
+}
 
 // Konfirmasi tindakan massal
-function confirmBulkAction() {
-  if (isBulkPromotion && currentAction === "promote") {
-    const pendingStudents = studentData.filter((student) => student.status === "pending")
-    const promotedCount = pendingStudents.length
+async function confirmBulkAction() {
+    if (isBulkPromotion && currentAction === "Lulus") {
+        const pendingStudents = studentData.filter((student) => student.status !== "Lulus" && student.status !== "Tidak Lulus");
+        let successfulPromotions = 0;
 
-    studentData.forEach((student) => {
-      if (student.status === "pending") {
-        student.status = "promote"
-      }
-    })
-    renderStudentData()
+        for (const student of pendingStudents) {
+            const updateSuccess = await sendStatusUpdateToServer(student.nis, "Lulus");
+            if (updateSuccess) {
+                const studentIndex = studentData.findIndex(s => s.nis === student.nis);
+                if (studentIndex !== -1) {
+                    studentData[studentIndex].status = "Lulus";
+                    successfulPromotions++;
+                }
+            }
+        }
+        renderStudentData(); // Render ulang tabel setelah semua update selesai
 
-    // Tampilkan notifikasi toast untuk promosi massal
-    toast.show('success', 'Berhasil!', `${promotedCount} siswa berhasil diluluskan!`)
-  }
-  closeModal()
+        if (successfulPromotions > 0) {
+            toast.show('success', 'Berhasil!', `${successfulPromotions} siswa berhasil diluluskan!`);
+        } else {
+            toast.show('warning', 'Tidak Ada Perubahan', 'Tidak ada siswa yang berhasil diluluskan.');
+        }
+    }
+    closeModal();
 }
+
+// FUNGSI UNTUK MENGIRIM STATUS UPDATE KE SERVER
+async function sendStatusUpdateToServer(nis, status) {
+    const url = '../src/API/update_kelulusan_siswa.php'; // Buat file PHP ini
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ nis: nis, status: status })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
+        }
+
+        const result = await response.json();
+        if (result.success) {
+            return true;
+        } else {
+            console.error('Server error updating status:', result.message);
+            return false;
+        }
+    } catch (error) {
+        console.error('Fetch error updating status:', error);
+        return false;
+    }
+}
+
 
 // Render kontrol paginasi
 function renderPagination() {
-  const paginationContainer = document.getElementById("pagination-numbers")
-  const totalPages = Math.ceil(studentData.length / itemsPerPage)
+  const paginationContainer = document.getElementById("pagination-numbers");
+  const totalPages = Math.ceil(studentData.length / itemsPerPage);
 
-  paginationContainer.innerHTML = ""
+  paginationContainer.innerHTML = "";
 
-  let startPage = Math.max(1, currentPage - 1)
-  const endPage = Math.min(totalPages, startPage + 2)
+  let startPage = Math.max(1, currentPage - 1);
+  const endPage = Math.min(totalPages, startPage + 2);
 
   if (endPage - startPage < 2) {
-    startPage = Math.max(1, endPage - 2)
+    startPage = Math.max(1, endPage - 2);
   }
 
   for (let i = startPage; i <= endPage; i++) {
-    const pageButton = document.createElement("button")
-    pageButton.className = `pagination-item ${i === currentPage ? "active" : "text-gray-700"}`
-    pageButton.textContent = i
-    pageButton.addEventListener("click", () => {
-      currentPage = i
-      renderStudentData()
-    })
-    paginationContainer.appendChild(pageButton)
+    const pageButton = document.createElement("button");
+    pageButton.className = `pagination-item ${i === currentPage ? "active" : "text-gray-700"}`;
+    pageButton.textContent = i;
+    // Gunakan event listener baru yang tidak menumpuk
+    const newPageButton = pageButton.cloneNode(true);
+    pageNumbersContainer.appendChild(newPageButton);
+    newPageButton.addEventListener("click", () => {
+        currentPage = i;
+        renderStudentData();
+    });
   }
 
-  const prevButton = document.getElementById("prev-page")
-  const nextButton = document.getElementById("next-page")
+  const prevButton = document.getElementById("prev-page");
+  const nextButton = document.getElementById("next-page");
 
-  prevButton.disabled = currentPage === 1
-  nextButton.disabled = currentPage === totalPages
+  prevButton.disabled = currentPage === 1;
+  nextButton.disabled = currentPage === totalPages || totalPages === 0;
 
   // Pasang kembali pendengar peristiwa setelah mengganti elemen
-  if (prevButton) {
-      prevButton.replaceWith(prevButton.cloneNode(true));
-      document.getElementById("prev-page").addEventListener("click", () => {
+  // Cek apakah tombol sudah ada di DOM sebelum mengganti
+  if (prevButton && prevButton.parentNode) { // Pastikan parent ada sebelum replaceChild
+      const newPrevButton = prevButton.cloneNode(true);
+      prevButton.parentNode.replaceChild(newPrevButton, prevButton);
+      newPrevButton.addEventListener("click", () => {
         if (currentPage > 1) {
-          currentPage--
-          renderStudentData()
+          currentPage--;
+          renderStudentData();
         }
       });
   }
-  if (nextButton) {
-      nextButton.replaceWith(nextButton.cloneNode(true));
-      document.getElementById("next-page").addEventListener("click", () => {
+  if (nextButton && nextButton.parentNode) { // Pastikan parent ada sebelum replaceChild
+      const newNextButton = nextButton.cloneNode(true);
+      nextButton.parentNode.replaceChild(newNextButton, nextButton);
+      newNextButton.addEventListener("click", () => {
         if (currentPage < totalPages) {
-          currentPage++
-          renderStudentData()
+          currentPage++;
+          renderStudentData();
         }
       });
   }
@@ -607,22 +557,11 @@ function renderPagination() {
 
 // Inisialisasi fungsi tombol
 function initializeButtons() {
-  const exportButton = document.getElementById("btn-export-data") // Tombol ini digunakan untuk simulasi ekspor umum
-  const promoteAllButton = document.getElementById("btn-promote-all")
-
-  if (exportButton) {
-    exportButton.addEventListener("click", () => {
-      // Simulasi ekspor data
-      setTimeout(() => {
-        toast.show('success', 'Berhasil!', 'Data berhasil diekspor (simulasi)!')
-      }, 500)
-    })
-  }
-
+  const promoteAllButton = document.getElementById("btn-set-all-lulus"); // Menggunakan ID yang benar dari HTML
   if (promoteAllButton) {
     promoteAllButton.addEventListener("click", () => {
-      showBulkPromotionModal()
-    })
+      showBulkPromotionModal();
+    });
   }
 }
 
@@ -636,21 +575,47 @@ function initializeExportPDF() {
     }
 
     exportPdfBtn.addEventListener("click", () => {
-        const table = document.getElementById("attendance-table");
+        const table = document.getElementById("kelulusan-table"); // Gunakan ID tabel yang benar
+        const tbody = document.getElementById("student-data"); // Gunakan ID tbody yang benar
+        const rows = tbody ? tbody.querySelectorAll("tr") : [];
 
         if (!table) {
-            console.error("Tabel dengan ID 'attendance-table' tidak ditemukan.");
-            toast.show("error", "Gagal!", "Tabel data tidak ditemukan untuk diekspor.");
+            toast.show("error", "Gagal!", "Tabel tidak ditemukan.");
             return;
         }
 
+        // Cek jika tidak ada data atau hanya baris "Belum ada data siswa"
+        if (!tbody || rows.length === 0 || (rows.length === 1 && rows[0].textContent.includes('Belum ada data siswa'))) {
+            toast.show("warning", "Data Kosong!", "Tidak ada data yang bisa diekspor ke PDF.");
+            return;
+        }
+
+        toast.show("info", "Memproses...", "Sedang menyiapkan PDF Anda.");
         exportPdfBtn.innerText = "Memproses...";
         exportPdfBtn.disabled = true;
 
-        const scale = 2; // Tingkatkan skala untuk kualitas yang lebih baik
-        html2canvas(table, { scale: scale }).then((canvas) => {
+        // Clone the table to manipulate for PDF export (e.g., remove buttons)
+        const tableClone = table.cloneNode(true);
+        // Remove the 'Aksi' column (last column) from the cloned table header
+        const headerRow = tableClone.querySelector('thead tr');
+        if (headerRow && headerRow.children.length > 0) {
+            headerRow.lastElementChild.remove();
+        }
+        // Remove the 'Aksi' column from each row in the cloned table body
+        const bodyRows = tableClone.querySelectorAll('tbody tr');
+        bodyRows.forEach(row => {
+            // Check if the row is the "No data" row
+            const isNoDataRow = row.querySelector('td[colspan="6"]'); // Colspan 6 untuk kelulusan
+            if (row.children.length > 0 && !isNoDataRow) {
+                row.lastElementChild.remove();
+            }
+        });
+
+
+        const scale = 2; // Increase scale for better quality
+        html2canvas(tableClone, { scale: scale }).then((canvas) => {
             const imgData = canvas.toDataURL("image/png");
-            const { jsPDF } = window.jspdf; // Akses jspdf dari window
+            const { jsPDF } = window.jspdf;
             const pdf = new jsPDF("p", "mm", "a4");
 
             const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -662,8 +627,14 @@ function initializeExportPDF() {
             let heightLeft = imgHeight;
             let position = 0;
 
-            while (heightLeft > 0) {
-                pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+            pdf.setFontSize(16);
+            pdf.text(`Rekap Kelulusan Siswa - Kelas ${assignedClassNumber}`, pdfWidth / 2, 10, { align: 'center' });
+            
+            // Adjust startY if header is added
+            const startY = 20;
+
+            while (heightLeft >= 0) {
+                pdf.addImage(imgData, "PNG", 0, position + startY, imgWidth, imgHeight);
                 heightLeft -= pdfHeight;
                 if (heightLeft > 0) {
                     pdf.addPage();
@@ -671,24 +642,22 @@ function initializeExportPDF() {
                 }
             }
 
-            // Konversi PDF ke Blob dan unduh otomatis
             const blob = pdf.output("blob");
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = "kelulusan-kelas.pdf";
+            a.download = `kelulusan_kelas_${assignedClassNumber}_${new Date().toISOString().slice(0,10)}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
             toast.show("success", "Berhasil!", "Data berhasil diekspor ke PDF!");
-            exportPdfBtn.innerText = "Export PDF";
-            exportPdfBtn.disabled = false;
         }).catch((error) => {
             console.error("Gagal membuat PDF:", error);
             toast.show("error", "Gagal!", "Terjadi kesalahan saat membuat PDF.");
-            exportPdfBtn.innerText = "Export PDF";
+        }).finally(() => {
+            exportPdfBtn.innerText = "Export Data";
             exportPdfBtn.disabled = false;
         });
     });
@@ -697,16 +666,16 @@ function initializeExportPDF() {
 
 // Jalankan saat halaman dimuat
 window.addEventListener("load", () => {
-  initializeSidebar()
-  initializeButtons() // Untuk simulasi ekspor umum dan promosi massal
-  initializeExportPDF() // Untuk ekspor PDF
-  renderStudentData()
-})
+    initializeSidebar();
+    initializeButtons(); // Untuk tombol lulus semua
+    initializeExportPDF(); // Untuk ekspor PDF
+    fetchStudentData(); // Panggil fetchStudentData saat halaman dimuat
+});
 
 // Jadikan fungsi tersedia secara global
-window.showConfirmationModal = showConfirmationModal
-window.showBulkPromotionModal = showBulkPromotionModal
-window.closeModal = closeModal
-window.confirmAction = confirmAction
-window.confirmBulkAction = confirmBulkAction
-window.ToastNotification = ToastNotification; 
+window.showConfirmationModal = showConfirmationModal;
+window.showBulkPromotionModal = showBulkPromotionModal;
+window.closeModal = closeModal;
+window.confirmAction = confirmAction;
+window.confirmBulkAction = confirmBulkAction;
+window.ToastNotification = ToastNotification;

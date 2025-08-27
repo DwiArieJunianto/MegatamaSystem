@@ -1,1265 +1,540 @@
-// Mengatur sidebar
-// function initializeSidebar() {
-//   const toggleButton = document.getElementById("toggle-sidebar")
-//   const sidebar = document.getElementById("sidebar")
-//   const mainContent = document.getElementById("main-content")
-//   const overlay = document.getElementById("overlay")
-
-//   toggleButton.addEventListener("click", () => {
-//     sidebar.classList.toggle("collapsed")
-//     sidebar.classList.toggle("mobile-open")
-//     mainContent.classList.toggle("expanded")
-//     overlay.classList.toggle("show")
-//   })
-
-//   overlay.addEventListener("click", () => {
-//     sidebar.classList.remove("mobile-open")
-//     overlay.classList.remove("show")
-//   })
-// }
-
-// Toggle sidebar functionality
-function initializeSidebar() {
-  const toggleBtn = document.getElementById("toggle-sidebar")
-  const sidebar = document.getElementById("sidebar")
-  const mainContent = document.getElementById("main-content")
-  const overlay = document.getElementById("overlay")
-
-  // Cek apakah semua element ada
-  if (!toggleBtn || !sidebar || !mainContent || !overlay) {
-    console.error("Beberapa element tidak ditemukan:", {
-      toggleBtn: !!toggleBtn,
-      sidebar: !!sidebar,
-      mainContent: !!mainContent,
-      overlay: !!overlay,
-    })
-    return
-  }
-
-  // Fungsi untuk reset semua classes dan styles
-  function resetSidebarStates() {
-    sidebar.classList.remove("collapsed", "mobile-open")
-    overlay.classList.remove("show")
-    // Reset inline styles jika ada
-    sidebar.style.transform = ""
-  }
-
-  // Fungsi untuk setup desktop layout
-  function setupDesktopLayout() {
-    resetSidebarStates()
-    // Di desktop, sidebar default terbuka dan main content menyesuaikan
-    mainContent.classList.remove("expanded")
-    sidebar.classList.remove("collapsed")
-  }
-
-  // Fungsi untuk setup mobile layout
-  function setupMobileLayout() {
-    resetSidebarStates()
-    // Di mobile, sidebar default tertutup
-    sidebar.classList.add("collapsed")
-    mainContent.classList.add("expanded")
-  }
-
-  // Fungsi untuk membuka sidebar
-  function openSidebar() {
-    if (window.innerWidth <= 768) {
-      // Mobile: gunakan mobile-open class
-      sidebar.classList.remove("collapsed")
-      sidebar.classList.add("mobile-open")
-      overlay.classList.add("show")
-    } else {
-      // Desktop: hilangkan collapsed class
-      sidebar.classList.remove("collapsed")
-      mainContent.classList.remove("expanded")
-    }
-  }
-
-  // Fungsi untuk menutup sidebar
-  function closeSidebar() {
-    if (window.innerWidth <= 768) {
-      // Mobile: tutup dan hilangkan overlay
-      sidebar.classList.add("collapsed")
-      sidebar.classList.remove("mobile-open")
-      overlay.classList.remove("show")
-    } else {
-      // Desktop: collapse sidebar dan expand main content
-      sidebar.classList.add("collapsed")
-      mainContent.classList.add("expanded")
-    }
-  }
-
-  // Fungsi untuk cek status sidebar (terbuka/tertutup)
-  function isSidebarOpen() {
-    if (window.innerWidth <= 768) {
-      return sidebar.classList.contains("mobile-open")
-    } else {
-      return !sidebar.classList.contains("collapsed")
-    }
-  }
-
-  // Fungsi untuk handle responsive behavior
-  function handleResponsiveLayout() {
-    const currentWidth = window.innerWidth
-
-    if (currentWidth <= 768) {
-      // Switching to mobile
-      setupMobileLayout()
-    } else {
-      // Switching to desktop
-      setupDesktopLayout()
-    }
-
-    console.log(`Layout switched to: ${currentWidth <= 768 ? "Mobile" : "Desktop"} (${currentWidth}px)`)
-  }
-
-  // Toggle sidebar
-  toggleBtn.addEventListener("click", () => {
-    console.log("Toggle clicked, window width:", window.innerWidth)
-    console.log("Sidebar open status:", isSidebarOpen())
-
-    if (isSidebarOpen()) {
-      closeSidebar()
-      console.log("Sidebar ditutup")
-    } else {
-      openSidebar()
-      console.log("Sidebar dibuka")
-    }
-  })
-
-  // Tutup sidebar saat mengklik overlay (hanya di mobile)
-  overlay.addEventListener("click", () => {
-    console.log("Overlay clicked - closing sidebar")
-    closeSidebar()
-  })
-
-  // Handle window resize
-  let resizeTimeout
-  window.addEventListener("resize", () => {
-    // Debounce resize event untuk performa
-    clearTimeout(resizeTimeout)
-    resizeTimeout = setTimeout(() => {
-      handleResponsiveLayout()
-    }, 100)
-  })
-
-  // Initialize layout berdasarkan ukuran window saat ini
-  handleResponsiveLayout()
-
-  console.log("Responsive sidebar initialized successfully")
-}
-
-// Fungsi tambahan untuk debugging
-function debugSidebar() {
-  const sidebar = document.getElementById("sidebar")
-  const mainContent = document.getElementById("main-content")
-  const overlay = document.getElementById("overlay")
-
-  console.log("=== SIDEBAR DEBUG INFO ===")
-  console.log("Window width:", window.innerWidth)
-  console.log("Device type:", window.innerWidth <= 768 ? "Mobile" : "Desktop")
-  console.log("Sidebar classes:", sidebar.className)
-  console.log("Main content classes:", mainContent.className)
-  console.log("Overlay classes:", overlay.className)
-  console.log("Sidebar computed transform:", window.getComputedStyle(sidebar).transform)
-}
-
-//LOGIC UNTUK TOAST NOTIFICATION
-class ToastNotification {
-  constructor() {
-    this.toastElement = document.getElementById("toast-notification")
-    this.toastIcon = document.getElementById("toast-icon")
-    this.toastTitle = document.getElementById("toast-title")
-    this.toastMessage = document.getElementById("toast-message")
-    this.toastClose = document.getElementById("toast-close")
-    this.toastContainer = this.toastElement.querySelector(".bg-white")
-
-    this.isVisible = false
-    this.hideTimeout = null
-
-    this.setupEventListeners()
-  }
-
-  setupEventListeners() {
-    // Event listener untuk tombol close
-    this.toastClose.addEventListener("click", () => {
-      this.hide()
-    })
-
-    // Auto hide setelah 5 detik
-    this.toastElement.addEventListener("transitionend", (e) => {
-      if (e.target === this.toastElement && this.isVisible) {
-        this.autoHide()
-      }
-    })
-  }
-
-  show(type, title, message) {
-    // Clear timeout sebelumnya jika ada
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout)
-    }
-
-    // Set konten toast
-    this.setContent(type, title, message)
-
-    // Reset classes
-    this.toastElement.classList.remove("toast-exit", "toast-show")
-    this.toastElement.classList.add("toast-enter")
-
-    // Force reflow untuk memastikan class diterapkan
-    this.toastElement.offsetHeight
-
-    // Tampilkan toast dengan animasi
-    setTimeout(() => {
-      this.toastElement.classList.remove("toast-enter")
-      this.toastElement.classList.add("toast-show")
-      this.isVisible = true
-    }, 10)
-  }
-
-  hide() {
-    if (!this.isVisible) return
-
-    // Clear auto hide timeout
-    if (this.hideTimeout) {
-      clearTimeout(this.hideTimeout)
-    }
-
-    // Sembunyikan dengan animasi
-    this.toastElement.classList.remove("toast-show")
-    this.toastElement.classList.add("toast-exit")
-    this.isVisible = false
-
-    // Reset ke posisi awal setelah animasi selesai
-    setTimeout(() => {
-      this.toastElement.classList.remove("toast-exit")
-      this.toastElement.classList.add("toast-enter")
-    }, 300)
-  }
-
-  autoHide() {
-    this.hideTimeout = setTimeout(() => {
-      this.hide()
-    }, 5000) // Auto hide setelah 5 detik
-  }
-
-  setContent(type, title, message) {
-    // Reset border color
-    this.toastContainer.className = this.toastContainer.className.replace(/border-l-(green|red|yellow|blue)-500/g, "")
-
-    // Set icon dan warna berdasarkan type
-    switch (type) {
-      case "success":
-        this.toastIcon.innerHTML = '<i class="fas fa-check-circle text-green-500 text-xl"></i>'
-        this.toastContainer.classList.add("border-l-green-500")
-        break
-      case "error":
-        this.toastIcon.innerHTML = '<i class="fas fa-times-circle text-red-500 text-xl"></i>'
-        this.toastContainer.classList.add("border-l-red-500")
-        break
-      case "warning":
-        this.toastIcon.innerHTML = '<i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>'
-        this.toastContainer.classList.add("border-l-yellow-500")
-        break
-      case "info":
-        this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-blue-500 text-xl"></i>'
-        this.toastContainer.classList.add("border-l-blue-500")
-        break
-      default:
-        this.toastIcon.innerHTML = '<i class="fas fa-info-circle text-gray-500 text-xl"></i>'
-        this.toastContainer.classList.add("border-l-gray-500")
-    }
-
-    this.toastTitle.textContent = title
-    this.toastMessage.textContent = message
-  }
-}
-
-// Inisialisasi toast notification
-const toast = new ToastNotification()
-
-// Data bulan
-const months = [
-  { value: "januari", label: "Januari", index: 0 },
-  { value: "februari", label: "Februari", index: 1 },
-  { value: "maret", label: "Maret", index: 2 },
-  { value: "april", label: "April", index: 3 },
-  { value: "mei", label: "Mei", index: 4 },
-  { value: "juni", label: "Juni", index: 5 },
-  { value: "juli", label: "Juli", index: 6 },
-  { value: "agustus", label: "Agustus", index: 7 },
-  { value: "september", label: "September", index: 8 },
-  { value: "oktober", label: "Oktober", index: 9 },
-  { value: "november", label: "November", index: 10 },
-  { value: "desember", label: "Desember", index: 11 },
-]
-
-//data dummy guru
-const dummyGuru = [
-  {
-    id: 1,
-    name: "Siti Nurhaliza, S.Pd",
-    gender: "Perempuan",
-    nip: "19800412 200903 2 001",
-    subject: "Agama Islam",
-    waliKelas: "Wali Kelas 7",
-    status: "Aktif",
-    photo: "https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 2,
-    name: "Ahmad Fauzan, M.Pd",
-    gender: "Laki - Laki",
-    nip: "19791105 200701 1 002",
-    subject: "Fisika",
-    waliKelas: "Wali Kelas 9",
-    status: "Non-Aktif",
-    photo: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 3,
-    name: "Rina Kartikasari, S.Pd",
-    gender: "Perempuan",
-    nip: "19870217 201001 2 003",
-    subject: "IPS",
-    waliKelas: "Wali Kelas 8",
-    status: "Aktif",
-    photo: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 4,
-    name: "Dedi Hartono, S.Pd",
-    gender: "Laki - Laki",
-    nip: "19750503 199903 1 004",
-    subject: "Biologi",
-    waliKelas: "Wali Kelas 12",
-    status: "Non-Aktif",
-    photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 5,
-    name: "Yuliana Maharani, M.Pd",
-    gender: "Perempuan",
-    nip: "19860526 201102 2 005",
-    subject: "Bahasa Inggris",
-    waliKelas: "",
-    status: "Aktif",
-    photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 6,
-    name: "Lestari Widyaningrum, S.Pd",
-    gender: "Perempuan",
-    nip: "19820115 200503 1 006",
-    subject: "Bahasa Indonesia",
-    waliKelas: "Wali Kelas 11",
-    status: "Non-Aktif",
-    photo: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 7,
-    name: "Olivia Putri, S.Pd",
-    gender: "Perempuan",
-    nip: "19881122 201203 2 007",
-    subject: "Matematika",
-    waliKelas: "Wali Kelas 10",
-    status: "Aktif",
-    photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 8,
-    name: "Andi Seputra, S.Sn",
-    gender: "Laki - Laki",
-    nip: "19891201 201104 1 008",
-    subject: "Sejarah",
-    waliKelas: "",
-    status: "Non-Aktif",
-    photo: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 9,
-    name: "Teguh Prasetyo, S.Pd",
-    gender: "Laki - Laki",
-    nip: "19760808 200001 2 009",
-    subject: "Agama Islam",
-    waliKelas: "",
-    status: "Non-Aktif",
-    photo: "https://images.unsplash.com/photo-1519244703995-f4e0f30006d5?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 10,
-    name: "Dewi Lestari, S.Pd",
-    gender: "Perempuan",
-    nip: "19830614 201001 2 003",
-    subject: "Bahasa Indonesia",
-    waliKelas: "",
-    status: "Aktif",
-    photo: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 11,
-    name: "Budi Santoso, M.T",
-    gender: "Laki-laki",
-    nip: "19810203 200702 1 004",
-    subject: "Matematika",
-    waliKelas: "",
-    status: "Non-Aktif",
-    photo: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=150&h=150&fit=crop&crop=face",
-  },
-  {
-    id: 12,
-    name: "Rina Marlina, S.Kom",
-    gender: "Perempuan",
-    nip: "19890517 201203 2 005",
-    subject: "IPS",
-    waliKelas: "",
-    status: "Aktif",
-    photo: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?w=150&h=150&fit=crop&crop=face",
-  },
-]
-
-//data dummy siswa
-const dummySiswa = [
-  {
-    id: 1,
-    name: "Rizky Pratama",
-    jenis_kelamin: "Laki - Laki",
-    nis: "2301456781",
-    kelas: "9",
-    noHp: "081234567890",
-    status: "Aktif",
-  },
-  {
-    id: 2,
-    name: "Salsabila Azzahra",
-    jenis_kelamin: "Perempuan",
-    nis: "2301456782",
-    kelas: "12",
-    noHp: "082156781234",
-    status: "Lulus",
-  },
-  {
-    id: 3,
-    name: "Dimas Arya Nugroho",
-    jenis_kelamin: "Laki - Laki",
-    nis: "2301456783",
-    kelas: "9",
-    noHp: "085723456789",
-    status: "Lulus",
-  },
-  {
-    id: 4,
-    name: "Aulia Rahmawati",
-    jenis_kelamin: "Perempuan",
-    nis: "2301456784",
-    kelas: "7",
-    noHp: "081398765432",
-    status: "Non-Aktif",
-  },
-  {
-    id: 5,
-    name: "Fadlan Nur Ramadhan",
-    jenis_kelamin: "Laki - Laki",
-    nis: "2301456785",
-    kelas: "11",
-    noHp: "082287654321",
-    status: "Aktif",
-  },
-  {
-    id: 6,
-    name: "Nabila Khairunnisa",
-    jenis_kelamin: "Perempuan",
-    nis: "2301456786",
-    kelas: "10",
-    noHp: "089012345678",
-    status: "Non-Aktif",
-  },
-  {
-    id: 7,
-    name: "Alif Maulana",
-    jenis_kelamin: "Laki - Laki",
-    nis: "2301456787",
-    kelas: "10",
-    noHp: "083122334455",
-    status: "Aktif",
-  },
-  {
-    id: 8,
-    name: "Zahra Melani Putri",
-    jenis_kelamin: "Perempuan",
-    nis: "2301456788",
-    kelas: "7",
-    noHp: "085377889900",
-    status: "Non-Aktif",
-  },
-  {
-    id: 9,
-    name: "Yoga Pradipta",
-    jenis_kelamin: "Laki - Laki",
-    nis: "2301456789",
-    kelas: "12",
-    noHp: "087766554433",
-    status: "Non-Aktif",
-  },
-  {
-    id: 10,
-    name: "Aisyah Nur Azizah",
-    jenis_kelamin: "Perempuan",
-    nis: "2301456790",
-    kelas: "8",
-    noHp: "081299887766",
-    status: "Aktif",
-  },
-  {
-    id: 11,
-    name: "Bayu Setiawan",
-    jenis_kelamin: "Laki - Laki",
-    nis: "2301456791",
-    kelas: "9",
-    noHp: "082334455667",
-    status: "Aktif",
-  },
-  {
-    id: 12,
-    name: "Citra Dewi",
-    jenis_kelamin: "Perempuan",
-    nis: "2301456792",
-    kelas: "11",
-    noHp: "085566778899",
-    status: "Lulus",
-  },
-]
-
-// Variabel untuk paginasi dan state
-let currentPage = 1;
-const itemsPerPage = 9;
-let currentAttendanceType = "datang";
-let currentMonth = "april";
-let currentYear = new Date().getFullYear(); // Tambahkan ini
-let filteredData = [];
-
-// Get status badge class - untuk siswa
-function getStatusBadge(status) {
-  switch (status.toLowerCase()) {
-    case "hadir":
-      return '<span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Hadir</span>'
-    case "sakit":
-      return '<span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Sakit</span>'
-    case "izin":
-      return '<span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Izin</span>'
-    case "alpa":
-      return '<span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Alpa</span>'
-    default:
-      return '<span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Unknown</span>'
-  }
-}
-
-// Get keterangan badge class untuk guru - mengikuti model status siswa
-function getKeteranganBadge(keterangan) {
-  switch (keterangan) {
-    case "Tepat Waktu":
-      return '<span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Tepat Waktu</span>'
-    case "Terlambat":
-      return '<span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Terlambat</span>'
-    case "Absen Tidak Dilakukan":
-      return '<span class="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">Absen Tidak Dilakukan</span>'
-  }
-}
-
-// Fungsi bantu untuk dapatkan label bulan dari value
-function getMonthLabel(value) {
-  const m = months.find((m) => m.value === value)
-  return m ? m.label : ""
-}
-
-// Fungsi bantu untuk mendapatkan index bulan
-function getMonthIndex(value) {
-  const m = months.find((m) => m.value === value)
-  return m ? m.index : 0
-}
-
-// Fungsi bantu format tanggal agar konsisten
-function formatTanggal(day, monthValue, year) {
-  const label = getMonthLabel(monthValue)
-  return `${String(day).padStart(2, "0")}-${label}-${year}`
-}
-
-// Fungsi untuk mengkonversi format tanggal dari input date ke format internal
-function convertDateInputToInternal(dateInput) {
-  if (!dateInput) return null
-
-  const [year, month, day] = dateInput.split("-")
-  const monthIndex = Number.parseInt(month, 10) - 1 // month input is 1-based, array is 0-based
-  const monthValue = months[monthIndex].value
-
-  return {
-    day: Number.parseInt(day, 10),
-    month: monthValue,
-    year: Number.parseInt(year, 10),
-    formatted: formatTanggal(day, monthValue, year),
-  }
-}
-
-// Generator data guru untuk bulan dan tahun tertentu
-async function generateGuruData() {
-  const tanggalInput = document.getElementById("tanggal")
-  let year = currentYear; // Gunakan currentYear yang sudah didefinisikan
-  let month = getMonthIndex(currentMonth) + 1
-
-  if (tanggalInput && tanggalInput.value) {
-    const [y, m] = tanggalInput.value.split("-")
-    year = parseInt(y)
-    month = parseInt(m)
-  }
-
-  try {
-    // Pastikan URL memanggil nama file PHP yang benar (get_data_absensi_tu.php)
-    const response = await fetch(`../src/API/get_data_absensi_tu.php?tipe=guru&bulan=${month}&tahun=${year}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-
-    if (data.error) {
-      console.error("API Error:", data.error);
-      return [];
-    }
-
-    return data.map((item) => {
-      let photoToShow = '';
-      if (currentAttendanceType === "datang") {
-        photoToShow = item.foto_datang;
-      } else { // currentAttendanceType === "pulang"
-        photoToShow = item.foto_pulang;
-      }
-
-      // Fallback ke default.png jika foto_datang atau foto_pulang kosong
-      const avatarPath = photoToShow ? '../src/img/upload/' + photoToShow : '../src/img/upload/default.png';
-
-      return {
-        name: item.nama ?? 'Tidak Diketahui',
-        avatar: avatarPath, // Menggunakan foto yang sesuai
-        date: item.tanggal,
-        time: currentAttendanceType === "datang" ? item.jam_datang : item.jam_pulang,
-        status: "Hadir", // Ini mungkin perlu disesuaikan dengan status dari absen guru
-        note: getKeterangan(currentAttendanceType === "datang" ? item.jam_datang : item.jam_pulang, currentAttendanceType), // Sesuaikan keterangan berdasarkan jam datang/pulang
-        day: new Date(item.tanggal).getDate(),
-        month: currentMonth,
-        year: year,
-      };
-    });
-  } catch (error) {
-    console.error("Error fetching guru data:", error);
-    return [];
-  }
-}
-
-// Hitung tepat waktu / terlambat
-function getKeterangan(jam, tipe) {
-  if (!jam) return "Absen Tidak Dilakukan"
-  const jamMasuk = new Date(`1970-01-01T${jam}`)
-  const batas = new Date(`1970-01-01T${tipe === "datang" ? "08:00:00" : "16:00:00"}`)
-  return jamMasuk <= batas ? "Tepat Waktu" : "Terlambat"
-}
-
-
-// Generator data siswa untuk bulan dan tahun tertentu
-async function generateSiswaData() {
-  const tanggalInput = document.getElementById("tanggal")
-  let year = new Date().getFullYear()
-  let month = getMonthIndex(currentMonth) + 1
-
-  if (tanggalInput && tanggalInput.value) {
-    const [y, m] = tanggalInput.value.split("-")
-    year = parseInt(y)
-    month = parseInt(m)
-  }
-
-  const response = await fetch(`../src/API/get_data_absensi_tu.php?tipe=siswa&bulan=${month}&tahun=${year}`)
-  const data = await response.json()
-
-  return data.map((item) => ({
-    name: item.nama ?? '-',
-    jenis_kelamin: item.jenis_kelamin ?? '-',
-    nis: item.nis,
-    kelas: item.kelas,
-    tanggal: item.tanggal,
-    status: item.status ?? 'hadir',
-    day: new Date(item.tanggal).getDate(),
-    month: currentMonth,
-    year: year,
-  }))
-
-}
-
-
-// Fungsi search yang diperbaiki
-function performSearch(data, searchTerm) {
-  if (!searchTerm || searchTerm.length < 2) {
-    return data // Return all data if search term is too short
-  }
-
-  const lowerSearchTerm = searchTerm.toLowerCase()
-
-  return data.filter((item) => {
-    // Search by name (works for both guru and siswa)
-    const nameMatch = item.name && item.name.toLowerCase().includes(lowerSearchTerm)
-
-    // For siswa, also search by NIS
-    const nisMatch = item.nis && item.nis.toLowerCase().includes(lowerSearchTerm)
-
-    return nameMatch || nisMatch
-  })
-}
-
-// Fungsi untuk mengupdate opsi status berdasarkan tipe
-function updateStatusOptions() {
-  const tipe = document.getElementById("tipe").value
-  const statusSelect = document.getElementById("status")
-  const currentValue = statusSelect.value
-
-  // Clear existing options
-  statusSelect.innerHTML = ""
-
-  if (tipe === "guru") {
-    // Opsi status untuk guru
-    const guruOptions = [
-      { value: "semua", text: "Semua Status" },
-      { value: "hadir", text: "Hadir" },
-      { value: "tidak hadir", text: "Tidak Hadir" },
-    ]
-
-    guruOptions.forEach((option) => {
-      const optionElement = document.createElement("option")
-      optionElement.value = option.value
-      optionElement.textContent = option.text
-      statusSelect.appendChild(optionElement)
-    })
-  } else {
-    // Opsi status untuk siswa
-    const siswaOptions = [
-      { value: "semua", text: "Semua Status" },
-      { value: "hadir", text: "Hadir" },
-      { value: "sakit", text: "Sakit" },
-      { value: "izin", text: "Izin" },
-      { value: "alpa", text: "Alpa" },
-    ]
-
-    siswaOptions.forEach((option) => {
-      const optionElement = document.createElement("option")
-      optionElement.value = option.value
-      optionElement.textContent = option.text
-      statusSelect.appendChild(optionElement)
-    })
-  }
-
-  // Restore previous value if it exists in new options
-  const availableValues = Array.from(statusSelect.options).map((opt) => opt.value)
-  if (availableValues.includes(currentValue)) {
-    statusSelect.value = currentValue
-  } else {
-    statusSelect.value = "semua"
-  }
-}
-
-// Fungsi untuk mengupdate tampilan filter berdasarkan tipe
-function updateFilterVisibility() {
-  const tipe = document.getElementById("tipe").value
-  const kelasFilter = document.getElementById("kelas")
-  const absenButtons = document.getElementById("btn-absen-datang").parentElement
-
-  if (tipe === "guru") {
-    // Untuk guru: sembunyikan HANYA filter kelas, tampilkan tombol absen
-    kelasFilter.style.display = "none"
-    absenButtons.style.display = "flex"
-  } else {
-    // Untuk siswa: tampilkan filter kelas, sembunyikan tombol absen
-    kelasFilter.style.display = "block"
-    absenButtons.style.display = "none"
-  }
-
-  // Update opsi status
-  updateStatusOptions()
-}
-
-// Render table - mengikuti model data siswa
-// Render table - mengikuti model data siswa
-async function renderTable() { // Tambahkan async di sini
-  const tbody = document.getElementById("attendance-data")
-  const tipe = document.getElementById("tipe").value
-  const statusFilter = document.getElementById("status").value
-  const kelasFilter = document.getElementById("kelas").value
-  const tanggalFilter = document.getElementById("tanggal").value
-  const searchTerm = document.getElementById("search-name").value.trim()
-
-  // Update tampilan filter berdasarkan tipe
-  updateFilterVisibility()
-
-  // Update currentMonth dari month filter jika tidak ada filter tanggal
-  const monthFilter = document.getElementById("month-filter")
-  if (monthFilter && monthFilter.value !== "semua" && !tanggalFilter) {
-    currentMonth = monthFilter.value
-  }
-
-  // Menggunakan await untuk mendapatkan data yang sebenarnya
-  let data = []
-  if (tipe === "guru") {
-    data = await generateGuruData()
-  } else {
-    data = await generateSiswaData()
-  }
-
-  // Apply search filter first
-  data = performSearch(data, searchTerm) // Baris ini (795) sekarang akan bekerja karena 'data' adalah array
-
-  // Filter berdasarkan status
-  if (statusFilter !== "semua") {
-    data = data.filter((item) => item.status.toLowerCase() === statusFilter.toLowerCase())
-  }
-
-  // Filter berdasarkan kelas (khusus siswa)
-  if (tipe === "siswa" && kelasFilter !== "semua") {
-    data = data.filter((item) => item.kelas === kelasFilter)
-  }
-
-  // Filter berdasarkan tanggal spesifik
-  if (tanggalFilter) {
-    const dateInfo = convertDateInputToInternal(tanggalFilter)
-    if (dateInfo) {
-      data = data.filter((item) => {
-        // Perbaiki logika filter tanggal jika 'item.tanggal' juga perlu diurai
-        // Asumsi item.tanggal sudah dalam format 'YYYY-MM-DD' atau sejenisnya dari PHP
-        const itemDate = new Date(item.tanggal)
-        return itemDate.getDate() === dateInfo.day &&
-          (itemDate.getMonth() + 1) === (getMonthIndex(dateInfo.month) + 1) && // Perhatikan bulan 0-indeks
-          itemDate.getFullYear() === dateInfo.year
-      })
-
-      // Update month filter untuk konsistensi UI
-      if (monthFilter) {
-        monthFilter.value = dateInfo.month
-      }
-    }
-  }
-
-  // Update filteredData untuk pagination
-  filteredData = data
-
-  // Paginasi
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const pageData = filteredData.slice(startIndex, endIndex)
-
-  // Render tabel
-  tbody.innerHTML = ""
-  if (pageData.length === 0) {
-    updatePagination()
-    return
-  }
-
-  pageData.forEach((item) => {
-    const row = document.createElement("tr")
-    row.className = "hover:bg-gray-50"
-
-    if (tipe === "guru") {
-      row.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <img class="h-8 w-8 rounded-full object-cover" 
-                         src="${item.avatar}" 
-                         alt="${item.name}">
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.name}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.date}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.time}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.status}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${getKeteranganBadge(item.note)}</td>
-            `;
-    } else {
-      row.innerHTML = `
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.name}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.jenis_kelamin}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.nis}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.kelas}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.tanggal}</td>
-                <td class="px-6 py-4 whitespace-nowrap">${getStatusBadge(item.status)}</td>
-            `
-    }
-
-    tbody.appendChild(row)
-  })
-
-  updatePagination()
-}
-
-// Update pagination - dengan logika yang lebih baik untuk data banyak
-function updatePagination() {
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage)
-  const paginationContainer = document.querySelector(
-    ".px-6.py-4.flex.items-center.justify-between.border-t.border-gray-200",
-  )
-
-  // Selalu tampilkan pagination container
-  paginationContainer.style.display = "flex"
-
-  if (filteredData.length === 0) {
-    // Jika tidak ada data, tampilkan "Menampilkan 1-0 dari 0 data"
-    document.getElementById("currentRange").textContent = "1-0"
-    document.getElementById("totalData").textContent = "0"
-
-    // Kosongkan page numbers
-    const pageNumbers = document.getElementById("pageNumbers")
-    pageNumbers.innerHTML = ""
-
-    // Disable kedua tombol navigasi
-    document.getElementById("prevPage").disabled = true
-    document.getElementById("nextPage").disabled = true
-
-    return
-  }
-
-  // Jika ada data, tampilkan pagination normal
-  const startIndex = (currentPage - 1) * itemsPerPage + 1
-  const endIndex = Math.min(currentPage * itemsPerPage, filteredData.length)
-
-  document.getElementById("currentRange").textContent = `${startIndex}-${endIndex}`
-  document.getElementById("totalData").textContent = filteredData.length
-
-  // Update page numbers dengan logika yang lebih smart
-  const pageNumbers = document.getElementById("pageNumbers")
-  pageNumbers.innerHTML = ""
-
-  // Jika total halaman <= 7, tampilkan semua
-  if (totalPages <= 7) {
-    for (let i = 1; i <= totalPages; i++) {
-      createPageButton(i, pageNumbers)
-    }
-  } else {
-    // Logika untuk pagination yang lebih kompleks
-    const delta = 2 // Jumlah halaman di kiri dan kanan current page
-
-    // Selalu tampilkan halaman pertama
-    createPageButton(1, pageNumbers)
-
-    // Tambahkan ellipsis jika perlu
-    if (currentPage > delta + 2) {
-      createEllipsis(pageNumbers)
-    }
-
-    // Tampilkan halaman di sekitar current page
-    const start = Math.max(2, currentPage - delta)
-    const end = Math.min(totalPages - 1, currentPage + delta)
-
-    for (let i = start; i <= end; i++) {
-      createPageButton(i, pageNumbers)
-    }
-
-    // Tambahkan ellipsis jika perlu
-    if (currentPage < totalPages - delta - 1) {
-      createEllipsis(pageNumbers)
-    }
-
-    // Selalu tampilkan halaman terakhir (jika bukan halaman 1)
-    if (totalPages > 1) {
-      createPageButton(totalPages, pageNumbers)
-    }
-  }
-
-  // Update prev/next buttons
-  const prevButton = document.getElementById("prevPage")
-  const nextButton = document.getElementById("nextPage")
-
-  prevButton.disabled = currentPage === 1
-  nextButton.disabled = currentPage === totalPages
-
-  // Update styling untuk disabled buttons
-  if (prevButton.disabled) {
-    prevButton.classList.add("opacity-50", "cursor-not-allowed")
-  } else {
-    prevButton.classList.remove("opacity-50", "cursor-not-allowed")
-  }
-
-  if (nextButton.disabled) {
-    nextButton.classList.add("opacity-50", "cursor-not-allowed")
-  } else {
-    nextButton.classList.remove("opacity-50", "cursor-not-allowed")
-  }
-}
-
-// Helper function untuk membuat tombol halaman
-function createPageButton(pageNum, container) {
-  const button = document.createElement("button")
-  button.textContent = pageNum
-  button.className = `px-3 py-2 text-sm rounded transition-colors duration-200 ${pageNum === currentPage
-    ? "bg-blue-600 text-white font-medium"
-    : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-    }`
-  button.addEventListener("click", () => {
-    currentPage = pageNum
-    renderTable()
-  })
-  container.appendChild(button)
-}
-
-// Helper function untuk membuat ellipsis
-function createEllipsis(container) {
-  const ellipsis = document.createElement("span")
-  ellipsis.textContent = "..."
-  ellipsis.className = "px-3 py-2 text-sm text-gray-400"
-  container.appendChild(ellipsis)
-}
-
-// Filter functions
-function applyFilters() {
-  currentPage = 1
-  renderTable()
-}
-
-// Debounce function untuk optimasi search
-function debounce(func, wait) {
-  let timeout
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout)
-      func(...args)
-    }
-    clearTimeout(timeout)
-    timeout = setTimeout(later, wait)
-  }
-}
-
-// Event listeners
-document.addEventListener("DOMContentLoaded", () => {
-  // Initialize sidebar
-  initializeSidebar()
-
-  // Set currentMonth sesuai bulan sekarang
-  const now = new Date()
-  const monthIndex = now.getMonth()
-  currentMonth = months[monthIndex].value
-  currentYear = now.getFullYear(); // Pastikan currentYear juga diupdate saat DOMContentLoaded
-
-  const monthSelect = document.getElementById("month-filter")
-  if (monthSelect) {
-    monthSelect.value = currentMonth
-  }
-
-  // Event listeners untuk tombol absen
-  // Event listeners untuk tombol absen
-  const btnAbsenDatang = document.getElementById("btn-absen-datang");
-  const btnAbsenPulang = document.getElementById("btn-absen-pulang");
-
-  if (btnAbsenDatang) { // Pastikan elemen ada sebelum menambahkan event listener
-    btnAbsenDatang.addEventListener("click", () => {
-      btnAbsenDatang.classList.add("active");
-      if (btnAbsenPulang) { // Pastikan btnAbsenPulang juga ada
-        btnAbsenPulang.classList.remove("active");
-      }
-      currentAttendanceType = "datang";
-      currentPage = 1;
-      renderTable();
-    });
-  }
-
-  if (btnAbsenPulang) { // Pastikan elemen ada sebelum menambahkan event listener
-    btnAbsenPulang.addEventListener("click", () => {
-      btnAbsenPulang.classList.add("active");
-      if (btnAbsenDatang) { // Pastikan btnAbsenDatang juga ada
-        btnAbsenDatang.classList.remove("active");
-      }
-      currentAttendanceType = "pulang";
-      currentPage = 1;
-      renderTable();
-    });
-  }
-
-  // Event listeners untuk filter
-  document.getElementById("tipe").addEventListener("change", () => {
-    currentPage = 1
-    updateHeader()
-    renderTable()
-  })
-
-  document.getElementById("status").addEventListener("change", applyFilters)
-  document.getElementById("kelas").addEventListener("change", applyFilters)
-
-  // Event listener untuk filter bulan
-  document.getElementById("month-filter").addEventListener("change", (e) => {
-    currentMonth = e.target.value
-    currentPage = 1
-    // Clear tanggal filter ketika bulan berubah
-    const tanggalInput = document.getElementById("tanggal")
-    if (tanggalInput) {
-      tanggalInput.value = ""
-    }
-    renderTable()
-  })
-
-  // Event listener untuk filter tanggal
-  document.getElementById("tanggal").addEventListener("change", applyFilters)
-
-  // Event listener untuk input pencarian nama dengan debounce
-  const searchInput = document.getElementById("search-name")
-  const debouncedSearch = debounce(applyFilters, 300)
-
-  searchInput.addEventListener("input", debouncedSearch)
-
-  // Pagination event listeners
-  document.getElementById("prevPage").addEventListener("click", () => {
-    if (currentPage > 1) {
-      currentPage--
-      renderTable()
-    }
-  })
-
-  document.getElementById("nextPage").addEventListener("click", () => {
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage)
-    if (currentPage < totalPages) {
-      currentPage++
-      renderTable()
-    }
-  })
-
-  // Event listener untuk export PDF dengan toast notification
-  document.getElementById("btn-export-pdf").addEventListener("click", () => {
-    exportRekapPDF()
-  })
-
-  async function exportRekapPDF() {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF("landscape");
-
-    const siswaData = await generateSiswaData();
-    const bulanList = ["Januari", "Februari", "Maret", "April", "Mei", "Juni"];
-
-    // Struktur kolom
-    const topHeaders = [
-      { content: "No", rowSpan: 2 },
-      { content: "Nama Siswa", rowSpan: 2 },
-      { content: "Ketidakhadiran/ Bulan / Alasan", colSpan: bulanList.length * 3 },
-      { content: "Jumlah", colSpan: 3 },
-    ];
-
-    const bulanHeaders = bulanList.map((b) => ({
-      content: b,
-      colSpan: 3,
-      styles: { halign: 'center' },
-    }));
-
-    const alasanHeaders = bulanList.flatMap(() => [
-      { content: "S" },
-      { content: "I" },
-      { content: "A" },
-    ]);
-
-
-    const subHeaders = [
-      ...bulanList.flatMap(() => [
-        { content: "S" },
-        { content: "I" },
-        { content: "A" },
-      ]),
-      { content: "S" },
-      { content: "I" },
-      { content: "A" },
-    ];
-
-    // Siapkan data
-    const groupedData = siswaData.reduce((acc, siswa) => {
-      const nama = siswa.name;
-      const bulan = new Date(siswa.tanggal).getMonth(); // 0 = Jan
-      if (!acc[nama]) {
-        acc[nama] = {
-          nama,
-          no: 0,
-          values: Array(6).fill().map(() => ({ s: 0, i: 0, a: 0 })),
-          total: { s: 0, i: 0, a: 0 },
-        };
-      }
-
-      if (bulan < 6) {
-        const val = acc[nama].values[bulan];
-        if (siswa.status.toLowerCase() === "sakit") {
-          val.s++; acc[nama].total.s++;
-        } else if (siswa.status.toLowerCase() === "izin") {
-          val.i++; acc[nama].total.i++;
-        } else if (siswa.status.toLowerCase() === "alpa") {
-          val.a++; acc[nama].total.a++;
+document.addEventListener('DOMContentLoaded', function() {
+    // --- DOM Elements ---
+    const absenTypeSelect = document.getElementById('tipe');
+    const monthFilterSelect = document.getElementById('month-filter');
+    const statusFilterSelect = document.getElementById('status');
+    const kelasFilterSelect = document.getElementById('kelas');
+    const classLabel = document.getElementById('kelasLabel'); // Pastikan ini ada di HTML Anda
+    const statusLabel = document.getElementById('statusLabel'); // Pastikan ini ada di HTML Anda
+    const searchNameInput = document.getElementById('search-name');
+    const btnAbsenDatang = document.getElementById('btn-absen-datang');
+    const btnAbsenPulang = document.getElementById('btn-absen-pulang');
+    const btnExportPdf = document.getElementById('btn-export-pdf');
+
+    const guruHeader = document.getElementById('guru-header');
+    const siswaHeader = document.getElementById('siswa-header');
+    const attendanceTableBody = document.getElementById('attendance-data');
+
+    const loadingMessage = document.getElementById('loadingMessage');
+    const errorMessage = document.getElementById('errorMessage');
+
+    const imageModal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const closeModal = document.getElementsByClassName('close')[0];
+
+    const currentRangeSpan = document.getElementById('currentRange');
+    const totalDataSpan = document.getElementById('totalData');
+    const prevPageButton = document.getElementById('prevPage');
+    const nextPageButton = document.getElementById('nextPage');
+    const pageNumbersContainer = document.getElementById('pageNumbers');
+
+    // Toast Notification elements
+    const toastNotification = document.getElementById("toast-notification");
+    const toastIcon = document.getElementById("toast-icon");
+    const toastTitle = document.getElementById("toast-title");
+    const toastMessage = document.getElementById("toast-message");
+    const toastCloseButton = document.getElementById("toast-close");
+
+    // --- State Variables ---
+    let currentAttendanceType = absenTypeSelect.value; // Initialize with default HTML value
+    let currentDisplayMode = 'absen-datang'; // 'absen-datang' or 'absen-pulang' (only for guru)
+    let allTableData = []; // Stores all fetched data for search and pagination
+    let filteredData = []; // Stores data after search filter
+    let currentPage = 1;
+    const rowsPerPage = 9; // Number of rows per page, matching your HTML pagination info
+
+    // --- Constants ---
+    // Adjust these image paths based on your server setup
+    // Based on your SQL dump, guru profile photos are in 'img/guru/'
+    const GURU_PROFILE_IMAGE_BASE_URL = 'img/guru/';
+    // And attendance photos like 'presensi__...' or 'foto_datang_...' seem to be directly accessible from the root or need a specific subfolder.
+    // Assuming they are in a folder named 'presensi' at the root of your project
+    const PRESENSI_IMAGE_BASE_URL = 'presensi/'; // ADJUST THIS! e.g., 'uploads/presensi/' or '' if at root.
+
+
+    // --- Functions ---
+
+    /**
+     * Shows a toast notification.
+     * @param {string} type - 'success', 'error', 'info', 'warning'
+     * @param {string} title - The title of the toast.
+     * @param {string} message - The message content.
+     */
+    const toast = {
+        show: (type, title, message) => {
+            let borderColorClass = '';
+            let iconHtml = '';
+            switch (type) {
+                case "success":
+                    borderColorClass = "border-l-green-500";
+                    iconHtml = '<i class="fas fa-check-circle text-green-500 text-xl"></i>';
+                    break;
+                case "error":
+                    borderColorClass = "border-l-red-500";
+                    iconHtml = '<i class="fas fa-times-circle text-red-500 text-xl"></i>';
+                    break;
+                case "info":
+                    borderColorClass = "border-l-blue-500";
+                    iconHtml = '<i class="fas fa-info-circle text-blue-500 text-xl"></i>';
+                    break;
+                case "warning":
+                    borderColorClass = "border-l-yellow-500";
+                    iconHtml = '<i class="fas fa-exclamation-triangle text-yellow-500 text-xl"></i>';
+                    break;
+                default:
+                    borderColorClass = "border-l-gray-500";
+                    iconHtml = '';
+            }
+
+            toastIcon.innerHTML = iconHtml;
+            toastNotification.querySelector(".bg-white").className =
+                `bg-white rounded-lg shadow-lg border-l-4 p-4 max-w-sm ${borderColorClass}`;
+            toastTitle.textContent = title;
+            toastMessage.textContent = message;
+
+            toastNotification.classList.remove("toast-exit", "toast-enter");
+            toastNotification.classList.add("toast-show");
+
+            clearTimeout(toastNotification.timeout);
+            toastNotification.timeout = setTimeout(() => {
+                toastNotification.classList.remove("toast-show");
+                toastNotification.classList.add("toast-exit");
+            }, 5000);
         }
-      }
+    };
 
-      return acc;
-    }, {});
-
-    const rows = Object.values(groupedData).map((item, idx) => {
-      const bulanData = item.values.flatMap((b) => [b.s, b.i, b.a]);
-      return [idx + 1, item.nama, ...bulanData, item.total.s, item.total.i, item.total.a];
-    });
-
-    // Render tabel
-    doc.text("Rekapitulasi Absensi Siswa", 14, 10);
-    doc.autoTable({
-      head: [
-        [
-          { content: "No", rowSpan: 3 },
-          { content: "Nama Siswa", rowSpan: 3 },
-          { content: "Ketidakhadiran", colSpan: bulanList.length * 3 },
-          { content: "Jumlah", colSpan: 3 }
-        ],
-        [
-          ...bulanHeaders,
-          { content: "", colSpan: 3 } // kosong di atas total
-        ],
-        [
-          ...alasanHeaders,
-          { content: "S" },
-          { content: "I" },
-          { content: "A" }
-        ]
-      ],
-      body: rows,
-      startY: 20,
-      styles: {
-        fontSize: 7,
-        halign: "center",
-        valign: "middle",
-        lineWidth: 0.1, // ketebalan garis
-        lineColor: [0, 0, 0], // warna garis: hitam
-      },
-      headStyles: {
-        fillColor: [41, 128, 185],
-        textColor: 255,
-        lineWidth: 0.2, // ketebalan garis header
-        lineColor: [0, 0, 0],
-      },
-      columnStyles: {
-        1: { halign: "left" },
-      },
-      tableLineWidth: 0.1,
-      tableLineColor: [0, 0, 0],
+    // Close toast button event listener
+    toastCloseButton.addEventListener('click', () => {
+        toastNotification.classList.remove("toast-show");
+        toastNotification.classList.add("toast-exit");
     });
 
 
-    doc.save("rekap-absensi-terstruktur.pdf");
-  }
+    // Function to update filter visibility (kelas and status for siswa only)
+    function updateFilterVisibility() {
+        if (currentAttendanceType === 'guru') {
+            kelasFilterSelect.style.display = 'none';
+            statusFilterSelect.style.display = 'none';
+            classLabel.style.display = 'none';
+            statusLabel.style.display = 'none';
+            
+            // Show absen datang/pulang buttons for guru
+            btnAbsenDatang.style.display = 'inline-flex';
+            btnAbsenPulang.style.display = 'inline-flex';
+            btnAbsenDatang.classList.add('active'); // Default to 'Absen Datang' active
+            btnAbsenPulang.classList.remove('active');
+            currentDisplayMode = 'absen-datang'; // Reset display mode for guru
+            
+            guruHeader.style.display = 'table-header-group';
+            siswaHeader.style.display = 'none';
+        } else { // currentAttendanceType === 'siswa'
+            kelasFilterSelect.style.display = 'inline-block';
+            statusFilterSelect.style.display = 'inline-block';
+            classLabel.style.display = 'inline-block';
+            statusLabel.style.display = 'inline-block';
+
+            // Hide absen datang/pulang buttons for siswa
+            btnAbsenDatang.style.display = 'none';
+            btnAbsenPulang.style.display = 'none';
+
+            guruHeader.style.display = 'none';
+            siswaHeader.style.display = 'table-header-group';
+        }
+    }
+
+    // Function to render table based on current data and page
+    function renderTable() {
+        attendanceTableBody.innerHTML = ''; // Clear current table body
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = Math.min(startIndex + rowsPerPage, filteredData.length);
+        const paginatedData = filteredData.slice(startIndex, endIndex);
+
+        if (paginatedData.length === 0) {
+            attendanceTableBody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Tidak ada data yang ditemukan.</td></tr>';
+            totalDataSpan.textContent = 0;
+            currentRangeSpan.textContent = '0-0';
+            updatePaginationControls(0);
+            return;
+        }
+
+        if (currentAttendanceType === 'guru') {
+            paginatedData.forEach(record => {
+                const row = attendanceTableBody.insertRow();
+                row.classList.add('hover:bg-gray-50');
+
+                // Photo (Avatar)
+                const avatarCell = row.insertCell();
+                if (record.avatar) {
+                    const imgAvatar = document.createElement('img');
+                    imgAvatar.src = GURU_PROFILE_IMAGE_BASE_URL + record.avatar;
+                    imgAvatar.alt = 'Profil Guru';
+                    imgAvatar.classList.add('image-thumbnail');
+                    imgAvatar.onerror = () => imgAvatar.src = 'https://via.placeholder.com/50/cccccc/ffffff?text=No+Img'; // Fallback image
+                    imgAvatar.onclick = () => {
+                        modalImage.src = imgAvatar.src;
+                        imageModal.style.display = 'block';
+                    };
+                    avatarCell.appendChild(imgAvatar);
+                } else {
+                    avatarCell.textContent = '-';
+                }
+
+                // Nama Guru
+                row.insertCell().textContent = record.name;
+                // Tanggal
+                row.insertCell().textContent = record.date;
+
+                // Waktu and Status/Keterangan based on display mode
+                let waktuDisplay = '';
+                let statusDisplay = '';
+                let fotoPresensi = '';
+                let fotoPresensiAlt = '';
+
+                if (currentDisplayMode === 'absen-datang') {
+                    waktuDisplay = record.jam_datang || '-';
+                    statusDisplay = record.jam_datang ? (record.jam_datang > "07:15:00" ? "Terlambat" : "Hadir") : "Belum Hadir";
+                    fotoPresensi = record.foto_datang;
+                    fotoPresensiAlt = 'Foto Datang';
+                } else { // absen-pulang
+                    waktuDisplay = record.jam_pulang || '-';
+                    statusDisplay = record.jam_pulang ? "Pulang" : "Belum Pulang";
+                    fotoPresensi = record.foto_pulang;
+                    fotoPresensiAlt = 'Foto Pulang';
+                }
+
+                row.insertCell().textContent = waktuDisplay; // Waktu
+                row.insertCell().textContent = statusDisplay; // Status
+
+                // Keterangan (Photo Datang/Pulang)
+                const keteranganCell = row.insertCell();
+                if (fotoPresensi) {
+                    const imgPresensi = document.createElement('img');
+                    imgPresensi.src = PRESENSI_IMAGE_BASE_URL + fotoPresensi;
+                    imgPresensi.alt = fotoPresensiAlt;
+                    imgPresensi.classList.add('image-thumbnail');
+                    imgPresensi.onerror = () => imgPresensi.src = 'https://via.placeholder.com/50/cccccc/ffffff?text=No+Img'; // Fallback
+                    imgPresensi.onclick = () => {
+                        modalImage.src = imgPresensi.src;
+                        imageModal.style.display = 'block';
+                    };
+                    keteranganCell.appendChild(imgPresensi);
+                } else {
+                    keteranganCell.textContent = '-';
+                }
+            });
+        } else { // currentAttendanceType === 'siswa'
+            paginatedData.forEach(record => {
+                const row = attendanceTableBody.insertRow();
+                row.classList.add('hover:bg-gray-50');
+                row.insertCell().textContent = record.name;
+                row.insertCell().textContent = record.jenis_kelamin;
+                row.insertCell().textContent = record.nis;
+                row.insertCell().textContent = record.kelas;
+                row.insertCell().textContent = record.tanggal;
+                // Render badge for status
+                const statusCell = row.insertCell();
+                statusCell.innerHTML = `<span class="px-2 py-1 text-xs font-medium bg-${getBadgeColor(record.status)}-100 text-${getBadgeColor(record.status)}-800 rounded-full">${record.status}</span>`;
+            });
+        }
+
+        updatePaginationControls(filteredData.length);
+    }
+
+    function getBadgeColor(status) {
+        switch (status) {
+            case 'hadir': return 'green';
+            case 'sakit': return 'yellow';
+            case 'izin': return 'blue';
+            case 'alpa': return 'red';
+            default: return 'gray';
+        }
+    }
 
 
+    // Function to apply search filter
+    function applySearchFilter() {
+        const searchTerm = searchNameInput.value.toLowerCase().trim();
+        if (searchTerm === '') {
+            filteredData = [...allTableData];
+        } else {
+            filteredData = allTableData.filter(record => {
+                const name = record.name ? record.name.toLowerCase() : '';
+                // For students, also search by NIS
+                const nis = record.nis ? record.nis.toLowerCase() : ''; 
+                return name.includes(searchTerm) || (currentAttendanceType === 'siswa' && nis.includes(searchTerm));
+            });
+        }
+        currentPage = 1; // Reset to first page after search
+        renderTable();
+    }
 
-  // Initialize header and render initial data
-  updateHeader()
-  renderTable()
-})
+    // Function to fetch data from PHP backend
+    async function fetchData() {
+        loadingMessage.style.display = 'block';
+        errorMessage.style.display = 'none';
+        allTableData = [];
+        filteredData = [];
+        attendanceTableBody.innerHTML = ''; // Clear table
+        
+        const tipe = absenTypeSelect.value;
+        const bulan = monthFilterSelect.value === 'semua' ? '' : monthFilterSelect.value;
+        const kelas = kelasFilterSelect.value === 'semua' ? '' : kelasFilterSelect.value;
+        const status = statusFilterSelect.value === 'semua' ? '' : statusFilterSelect.value;
 
-// Fungsi untuk mengupdate header berdasarkan tipe absensi
-function updateHeader() {
-  const tipe = document.getElementById("tipe").value
-  const guruHeader = document.getElementById("guru-header")
-  const siswaHeader = document.getElementById("siswa-header")
+        let url = `src/Api/tu_rekap_absensi.php?tipe=${tipe}&bulan=${bulan}`; // Adjust this path if it's different
+        if (tipe === 'siswa') {
+            if (kelas) url += `&kelas=${kelas}`;
+            if (status) url += `&status=${status}`;
+        }
+        
+        // Show a loading toast
+        toast.show('info', 'Memuat Data', 'Sedang mengambil data absensi...');
 
-  if (tipe === "guru") {
-    guruHeader.style.display = "table-header-group"
-    siswaHeader.style.display = "none"
-  } else {
-    guruHeader.style.display = "none"
-    siswaHeader.style.display = "table-header-group"
-  }
-}
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorBody = await response.json().catch(() => response.text()); // Try JSON first, then plain text
+                throw new Error(`HTTP error! status: ${response.status} - ${typeof errorBody === 'object' && errorBody.error ? errorBody.error : errorBody}`);
+            }
+            const result = await response.json();
+
+            loadingMessage.style.display = 'none';
+
+            if (result.error) {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'Error: ' + result.error;
+                toast.show('error', 'Gagal Memuat', result.error);
+                return;
+            }
+
+            allTableData = result;
+            applySearchFilter(); // Apply initial search filter (empty string if no search term)
+            toast.show('success', 'Data Berhasil Dimuat', `Menampilkan ${allTableData.length} data absensi.`);
+
+        } catch (error) {
+            loadingMessage.style.display = 'none';
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = 'Terjadi kesalahan saat mengambil data: ' + error.message;
+            toast.show('error', 'Kesalahan Jaringan', 'Gagal memuat data: ' + error.message);
+            console.error('Fetch error:', error);
+        }
+    }
+
+    // --- Pagination Functions ---
+    function updatePaginationControls(totalRecords) {
+        const totalPages = Math.ceil(totalRecords / rowsPerPage);
+        
+        prevPageButton.disabled = currentPage === 1;
+        nextPageButton.disabled = currentPage === totalPages || totalRecords === 0;
+
+        pageNumbersContainer.innerHTML = '';
+        const maxPagesToShow = 5; // e.g., 1 2 3 4 5 ... 10
+
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        if (startPage > 1) {
+            appendPageButton(1, pageNumbersContainer);
+            if (startPage > 2) {
+                const span = document.createElement('span');
+                span.textContent = '...';
+                span.classList.add('px-2', 'py-1', 'text-sm', 'text-gray-500');
+                pageNumbersContainer.appendChild(span);
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            appendPageButton(i, pageNumbersContainer);
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                const span = document.createElement('span');
+                span.textContent = '...';
+                span.classList.add('px-2', 'py-1', 'text-sm', 'text-gray-500');
+                pageNumbersContainer.appendChild(span);
+            }
+            appendPageButton(totalPages, pageNumbersContainer);
+        }
+
+        // Update range text
+        const startIndex = (currentPage - 1) * rowsPerPage;
+        const endIndex = Math.min(startIndex + rowsPerPage, totalRecords);
+        if (totalRecords === 0) {
+            currentRangeSpan.textContent = '0-0';
+        } else {
+            currentRangeSpan.textContent = `${startIndex + 1}-${endIndex}`;
+        }
+        totalDataSpan.textContent = totalRecords;
+    }
+
+    function appendPageButton(pageNumber, container) {
+        const button = document.createElement('button');
+        button.textContent = pageNumber;
+        button.classList.add('px-3', 'py-1', 'text-sm', 'rounded-md');
+        if (pageNumber === currentPage) {
+            button.classList.add('bg-blue-600', 'text-white');
+        } else {
+            button.classList.add('text-gray-700', 'hover:bg-gray-200');
+        }
+        button.addEventListener('click', () => {
+            currentPage = pageNumber;
+            renderTable();
+        });
+        container.appendChild(button);
+    }
+
+    // --- Export to PDF (Client-side, basic) ---
+    function exportTableToPdf() {
+        toast.show('info', 'Mengekspor PDF', 'Sedang menyiapkan data untuk PDF...');
+        
+        if (typeof window.jsPDF === 'undefined' || typeof window.jspdf.plugin === 'undefined') {
+            toast.show('error', 'Gagal Export', 'jsPDF library tidak ditemukan. Pastikan sudah diimpor.');
+            console.error('jsPDF library not loaded.');
+            return;
+        }
+
+        const doc = new window.jsPDF.jsPDF();
+        
+        let head = [];
+        let body = [];
+
+        // Clone the table for PDF export to avoid modifying the displayed table
+        const originalTable = document.getElementById('attendanceTable');
+        const tempTable = originalTable.cloneNode(true);
+        tempTable.style.visibility = 'hidden'; // Hide the cloned table
+        document.body.appendChild(tempTable); // Append to body for html2canvas to work
+
+        // Adjust headers and data based on current view
+        if (currentAttendanceType === 'guru') {
+            head = [['Nama Guru', 'Tanggal', 'Waktu', 'Status']]; // Exclude Foto columns for simplicity in PDF
+            body = filteredData.map(record => {
+                let waktu = '';
+                let status = '';
+                if (currentDisplayMode === 'absen-datang') {
+                    waktu = record.jam_datang || '-';
+                    status = record.jam_datang ? (record.jam_datang > "07:15:00" ? "Terlambat" : "Hadir") : "Belum Hadir";
+                } else {
+                    waktu = record.jam_pulang || '-';
+                    status = record.jam_pulang ? "Pulang" : "Belum Pulang";
+                }
+                return [record.name, record.date, waktu, status];
+            });
+        } else { // siswa
+            head = [['Nama Siswa', 'Jenis Kelamin', 'NIS', 'Kelas', 'Tanggal', 'Status']];
+            body = filteredData.map(record => [
+                record.name, record.jenis_kelamin, record.nis, record.kelas, record.tanggal, record.status
+            ]);
+        }
+        
+        doc.autoTable({
+            head: head,
+            body: body,
+            startY: 20,
+            headStyles: { fillColor: [30, 64, 175] }, // Dark blue header
+            styles: { fontSize: 8, cellPadding: 3 },
+            margin: { top: 10 },
+            didDrawPage: function(data) {
+                // Header
+                doc.setFontSize(16);
+                doc.setTextColor(40);
+                doc.text(`Rekap Absensi ${currentAttendanceType === 'guru' ? 'Guru' : 'Siswa'}`, data.settings.margin.left, 15);
+            }
+        });
+
+        doc.save(`rekap_absensi_${currentAttendanceType}_${new Date().toISOString().slice(0,10)}.pdf`);
+        toast.show('success', 'Export Berhasil', 'Data absensi telah berhasil diekspor sebagai PDF.');
+        document.body.removeChild(tempTable); // Clean up the cloned table
+    }
+
+
+    // --- Event Listeners ---
+    absenTypeSelect.addEventListener('change', () => {
+        currentAttendanceType = absenTypeSelect.value;
+        // Reset specific filters when changing type
+        monthFilterSelect.value = 'semua';
+        kelasFilterSelect.value = 'semua';
+        statusFilterSelect.value = 'semua';
+        searchNameInput.value = ''; // Clear search
+        
+        updateFilterVisibility();
+        fetchData(); // Fetch data for the new type
+    });
+
+    monthFilterSelect.addEventListener('change', fetchData);
+    statusFilterSelect.addEventListener('change', fetchData);
+    kelasFilterSelect.addEventListener('change', fetchData);
+    searchNameInput.addEventListener('keyup', applySearchFilter); // Live search
+
+    btnAbsenDatang.addEventListener('click', () => {
+        if (currentAttendanceType === 'guru') {
+            currentDisplayMode = 'absen-datang';
+            btnAbsenDatang.classList.add('active');
+            btnAbsenPulang.classList.remove('active');
+            renderTable();
+        }
+    });
+
+    btnAbsenPulang.addEventListener('click', () => {
+        if (currentAttendanceType === 'guru') {
+            currentDisplayMode = 'absen-pulang';
+            btnAbsenDatang.classList.remove('active');
+            btnAbsenPulang.classList.add('active');
+            renderTable();
+        }
+    });
+
+    prevPageButton.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            renderTable();
+        }
+    });
+
+    nextPageButton.addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            renderTable();
+        }
+    });
+
+    // Close modal functionality
+    closeModal.onclick = function() {
+        imageModal.style.display = "none";
+    }
+    window.onclick = function(event) {
+        if (event.target == imageModal) {
+            imageModal.style.display = "none";
+        }
+    }
+
+    // Toggle sidebar
+    const toggleSidebarBtn = document.getElementById('toggle-sidebar');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    const mainContent = document.getElementById('main-content'); // Assuming this exists
+
+    toggleSidebarBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('active');
+        overlay.classList.toggle('active');
+        if (mainContent) mainContent.classList.toggle('active'); // Toggle main-content if it exists
+    });
+
+    overlay.addEventListener('click', () => {
+        sidebar.classList.remove('active');
+        overlay.classList.remove('active');
+        if (mainContent) mainContent.classList.remove('active');
+    });
+
+    // Initial setup and data load
+    updateFilterVisibility(); // Set initial filter visibility (siswa by default)
+    fetchData(); // Load initial data
+
+    // --- PDF Export setup ---
+    btnExportPdf.addEventListener('click', exportTableToPdf);
+});

@@ -1,12 +1,18 @@
 <?php
-// Start session if not already started
+// Pastikan sesi dimulai. Ini adalah praktik baik untuk file yang mungkin di-include.
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Include database configuration
-// Ensure this path is correct and establishes $conn
-include "../src/config/config.php";
+// Pastikan koneksi database ($conn) tersedia.
+// Header.php sering di-include, jadi pastikan 'config.php' sudah di-include di file utama
+// atau tambahkan di sini jika header.php bisa diakses langsung tanpa 'config.php' di atasnya.
+// Jika file utama Anda (misal dashboard_guru.php) sudah meng-include config.php sebelum header.php,
+// maka baris ini bisa dihilangkan di header.php untuk menghindari include ganda.
+// Namun, untuk keamanan, kita letakkan di sini.
+if (!isset($conn)) {
+    include "../config/config.php"; // Sesuaikan path ini jika perlu!
+}
 
 // Cek apakah user sudah login sebagai guru
 if (empty($_SESSION['guru_id']) || empty($_SESSION['nama_guru']) || empty($_SESSION['ID'])) {
@@ -18,61 +24,89 @@ if (empty($_SESSION['guru_id']) || empty($_SESSION['nama_guru']) || empty($_SESS
 $id_guru = $_SESSION['guru_id'];
 $tanggal = date('Y-m-d');
 
-// Initialize $_SESSION['is_wali_kelas_9_or_12'] if it's not set
-// This ensures it always has a default false value before checking
+// --- Perbaikan Utama: Memeriksa is_wali_kelas_9_or_12 dari kolom wali_kelas ---
+// Kita akan menggunakan $_SESSION['kelas_wali'] yang sudah diisi saat login,
+// ATAU jika sesi belum diset, kita ambil dari database.
+// Ini akan mencegah error "Table doesn't exist" karena tidak lagi query guru_bidang_tugas.
 if (!isset($_SESSION['is_wali_kelas_9_or_12'])) {
-    $_SESSION['is_wali_kelas_9_or_12'] = false;
-}
+    $_SESSION['is_wali_kelas_9_or_12'] = false; // Default false
 
-// Only perform the wali kelas check if $conn is available
-if (isset($conn)) {
-    // Use prepared statement to get wali_kelas directly from the guru table
-    $stmt_wali_kelas = $conn->prepare("SELECT wali_kelas FROM guru WHERE id_guru = ?");
-    $stmt_wali_kelas->bind_param("s", $id_guru); // Assuming id_guru is string/varchar
-    $stmt_wali_kelas->execute();
-    $result_wali_kelas = $stmt_wali_kelas->get_result();
+    if (isset($_SESSION['guru_id'])) {
+        $id_guru_sesi = $_SESSION['guru_id']; // Menggunakan variabel lokal agar tidak bingung
 
-    if ($result_wali_kelas->num_rows > 0) {
-        $wali_kelas_data = $result_wali_kelas->fetch_assoc();
-        $wali_kelas_value = $wali_kelas_data['wali_kelas'];
-
-        // Check if the wali_kelas is specifically "Wali Kelas 9" or "Wali Kelas 12"
-        // This is the most reliable way based on your latest image data
-        if ($wali_kelas_value === 'Wali Kelas 9' || $wali_kelas_value === 'Wali Kelas 12') {
-            $_SESSION['is_wali_kelas_9_or_12'] = true;
+        // Periksa apakah kelas_wali sudah ada di sesi dari proses login
+        if (isset($_SESSION['kelas_wali'])) {
+            $wali_kelas_string = $_SESSION['kelas_wali'];
+        } else {
+            // Jika belum ada di sesi (mungkin user langsung ke halaman ini tanpa proses login yang melalui script saya),
+            // ambil dari database.
+            $stmt_get_wali_kelas = $conn->prepare("SELECT wali_kelas FROM guru WHERE id_guru = ? LIMIT 1");
+            if ($stmt_get_wali_kelas) {
+                $stmt_get_wali_kelas->bind_param("i", $id_guru_sesi);
+                $stmt_get_wali_kelas->execute();
+                $result_get_wali_kelas = $stmt_get_wali_kelas->get_result();
+                if ($result_get_wali_kelas->num_rows > 0) {
+                    $row_wali_kelas = $result_get_wali_kelas->fetch_assoc();
+                    $wali_kelas_string = $row_wali_kelas['wali_kelas'];
+                    // Simpan ke sesi juga untuk penggunaan selanjutnya
+                    $_SESSION['kelas_wali'] = $wali_kelas_string;
+                }
+                $stmt_get_wali_kelas->close();
+            } else {
+                error_log("Gagal menyiapkan statement untuk mengambil wali_kelas di header.php: " . $conn->error);
+            }
         }
-    }
-    $stmt_wali_kelas->close();
-}
 
-
-// Fetch guru profile data
-$stmt_profil_guru = $conn->prepare("SELECT nama_guru, foto_url FROM guru WHERE id_guru = ?"); // Assuming 'foto_profil' is actually 'foto_url' based on your first image
-$stmt_profil_guru->bind_param("s", $id_guru);
-$stmt_profil_guru->execute();
-$result_profil_guru = $stmt_profil_guru->get_result();
-$profil_guru = $result_profil_guru->fetch_assoc();
-$stmt_profil_guru->close();
-
-$nama = ''; // Initialize nama
-
-if (!empty($profil_guru)) {
-    $nama = htmlspecialchars($profil_guru['nama_guru']); // Sanitize output
-
-    if (!empty($profil_guru['foto_url'])) { // Using 'foto_url' as seen in the first image
-        $file_path = '../src/' . $profil_guru['foto_url'];
-        if (file_exists($file_path)) {
-            $foto = htmlspecialchars($profil_guru['foto_url']); // Use the actual photo if file exists
+        // Sekarang, cek nilai wali_kelas
+        if (!empty($wali_kelas_string)) {
+            // Ekstrak nomor kelas dari string 'Wali Kelas X'
+            if (preg_match('/Wali Kelas (\d+)/', $wali_kelas_string, $matches)) {
+                $assigned_class_number = (int)$matches[1];
+                if ($assigned_class_number == 9 || $assigned_class_number == 12) {
+                    $_SESSION['is_wali_kelas_9_or_12'] = true;
+                }
+            }
         }
     }
 }
+// --- Akhir Perbaikan Utama ---
 
-// Retrieve the session flag (it's already set above)
+
+// Query untuk mengambil profil guru (tetap menggunakan id_guru dari sesi)
+$query_guru = mysqli_query($conn, "SELECT * FROM guru WHERE id_guru = '$id_guru'");
+// Gunakan prepared statement di sini juga untuk keamanan!
+/*
+$stmt_profil_guru = $conn->prepare("SELECT * FROM guru WHERE id_guru = ?");
+if($stmt_profil_guru) {
+    $stmt_profil_guru->bind_param("i", $id_guru);
+    $stmt_profil_guru->execute();
+    $result_profil_guru = $stmt_profil_guru->get_result();
+    $profil_guru = $result_profil_guru->fetch_assoc();
+    $stmt_profil_guru->close();
+} else {
+    error_log("Gagal menyiapkan statement profil guru: " . $conn->error);
+    $profil_guru = null; // Pastikan null jika gagal
+}
+*/
+// Untuk saat ini, kita biarkan mysqli_query yang lama agar tidak terlalu banyak perubahan sekaligus,
+// tapi ingat untuk mengupdate ini ke prepared statement nanti.
+$profil_guru = mysqli_fetch_assoc($query_guru);
+
+
+$nama = $profil_guru['nama_guru'] ?? 'Nama Guru Tidak Ditemukan'; // Null Coalescing Operator untuk keamanan
+
+$foto = '1.png'; // Default foto
+
+// Periksa apakah foto_url ada dan file foto_profil ada di server
+if (!empty($profil_guru) && !empty($profil_guru['foto_url'])) { // Perhatikan: di DB Anda kolomnya 'foto_url' bukan 'foto_profil'
+    $file_path = '../src/img/guru/' . $profil_guru['foto_url'];
+    if (file_exists($file_path)) {
+        $foto = htmlspecialchars($profil_guru['foto_url']);
+    }
+}
+
+// Ambil nilai akhir dari sesi untuk digunakan di tampilan
 $is_wali_kelas_9_or_12 = $_SESSION['is_wali_kelas_9_or_12'];
-
-// Close the main database connection if it's no longer needed in this script
-// (often, it's kept open if other includes also need it)
-// $conn->close(); // Uncomment if this is the last place $conn is used
 ?>
 
 
@@ -93,7 +127,7 @@ $is_wali_kelas_9_or_12 = $_SESSION['is_wali_kelas_9_or_12'];
     <div id="overlay" class="overlay"></div>
 
     <?php
-    $currentPage = basename($_SERVER['PHP_SELF']);  // ambil nama file
+    $currentPage = basename($_SERVER['PHP_SELF']); // ambil nama file
 
     // Tentukan judul dinamis berdasarkan halaman saat ini
     $dashboardTitle = 'Dashboard';
@@ -215,27 +249,27 @@ $is_wali_kelas_9_or_12 = $_SESSION['is_wali_kelas_9_or_12'];
         </div>
     </div>
     <div id="main-content" class="main-content">
-        <header class="bg-white shadow-sm border-b border-gray-200">
-            <div class="px-5 py-2 flex items-center justify-between">
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="px-5 py-2 flex items-center justify-between">
+            <div class="flex items-center">
+                <button id="toggle-sidebar"
+                    class="p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                </button>
+                <h1 class="ml-3 text-lg font-semibold text-gray-800"><?= $dashboardTitle ?></h1>
+            </div>
+            <div class="flex items-center">
                 <div class="flex items-center">
-                    <button id="toggle-sidebar"
-                        class="p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus:outline-none">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
-                            stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 6h16M4 12h16M4 18h7" />
-                        </svg>
-                    </button>
-                    <h1 class="ml-3 text-lg font-semibold text-gray-800"><?= $dashboardTitle ?></h1>
-                </div>
-                <div class="flex items-center">
-                    <div class="flex items-center">
-                        <div class="avatar-ring">
-                            <img class="h-8 w-8 rounded-full object-cover"
-                                src="../src/<?= $foto ?>" alt="User avatar">
-                        </div>
-                        <span class="ml-2 text-sm font-medium text-gray-700"><?= $nama ?></span>
+                    <div class="avatar-ring">
+                        <img class="h-8 w-8 rounded-full object-cover"
+                            src="../src/img/guru/<?= $foto ?>" alt="User avatar">
                     </div>
+                    <span class="ml-2 text-sm font-medium text-gray-700"><?= $nama ?></span>
                 </div>
             </div>
-        </header>
+        </div>
+    </header>

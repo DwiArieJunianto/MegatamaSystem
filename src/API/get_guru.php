@@ -18,7 +18,7 @@ while ($row = $result->fetch_assoc()) {
         'password' => $row['password'],
         'photo' => $row['foto_url'],
     ];
-}
+} 
 
 echo json_encode($data);
 $conn->close();

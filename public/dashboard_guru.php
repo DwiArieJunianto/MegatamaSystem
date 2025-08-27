@@ -126,7 +126,7 @@ include "layout/header.php";
                         </div>
                         <div>
                             <p class="text-2xl font-bold text-gray-800">3 <span
-                                    class="text-sm text-gray-500 font-normal">Kelas</span></p>
+                                    class="text-sm text-gray-500 font-normal">  </span></p>
                         </div>
                     </div>
                 </div> -->

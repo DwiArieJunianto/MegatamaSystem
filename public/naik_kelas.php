@@ -1,50 +1,131 @@
-<?php
-
-include "../src/config/config.php";
-
-session_start();
-
-// Cek apakah user sudah login
-if (!isset($_SESSION['guru_id'])) {
-    header("Location: login.html");
-    exit();
-}
-
-$id_guru = $_SESSION['guru_id'];
-$is_wali_kelas = false; // Flag to determine if the teacher is a homeroom teacher
-$assigned_class = null; // Will store the actual class string like "XI IPA 1" or "XII IPS 3"
-
-$stmt = $conn->prepare("SELECT wali_kelas FROM guru WHERE id_guru = ?");
-$stmt->bind_param("s", $id_guru);
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows > 0) {
-    $guru_data = $result->fetch_assoc();
-    $wali_kelas_value = $guru_data['wali_kelas'];
-
-    // Check if the wali_kelas column has a value (i.e., not NULL or empty)
-    if ($wali_kelas_value !== NULL && $wali_kelas_value !== '') {
-        $is_wali_kelas = true; // Set flag to true if a wali_kelas is assigned
-        $assigned_class = $wali_kelas_value; // Store the assigned class string
-    }
-}
-$stmt->close(); // Close the statement
 
 
-if (!$is_wali_kelas) {
-    header("Location: naik_kelas_tidak_diizinkan.php");
-    exit();
-}
+<!DOCTYPE html>
+<html lang="en">
 
-$_SESSION['assigned_wali_kelas'] = $assigned_class;
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Guru-Yayasan Megatama Jambi</title>
+    <link rel="stylesheet" href="css/final.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
 
+<body class="font-poppins mode-2">
+    <div id="overlay" class="overlay"></div>
 
-include "layout/header.php";
+    
+    <div id="sidebar" class="sidebar text-white flex flex-col">
+        <div class="flex items-center p-3 border-b border-blue-800">
+            <div class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" viewBox="0 0 20 20"
+                    fill="currentColor">
+                    <path
+                        d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                </svg>
+                <h1 class="text-base font-bold ml-3 logo-text">Yayasan Megatama</h1>
+            </div>
+        </div>
 
-?>
+        <div class="p-3">
+            <p class="text-xs text-blue-300 mb-2 logo-text">Menu</p>
+            <nav class="space-y-1">
+                <a href="dashboard_guru.php" class="menu-item px-3 py-2 text-sm font-medium rounded-md text-blue-200">
+                    <div class="menu-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-300" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                    </div>
+                    <span class="menu-text">Dashboard</span>
+                </a>
+                <a href="riwayat_presensi_guru.php"
+                    class="menu-item px-3 py-2 text-sm font-medium rounded-md text-blue-200">
+                    <div class="menu-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-300" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <span class="menu-text">Riwayat Presensi</span>
+                </a>
+                <a href="presensi_siswa.php" class="menu-item px-3 py-2 text-sm font-medium rounded-md text-blue-200">
+                    <div class="menu-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-300" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                    </div>
+                    <span class="menu-text">Presensi Siswa</span>
+                </a>
 
-    <main class="p-4 bg-pattern">
+                                    <a href="kelulusan_siswa.php" class="menu-item px-3 py-2 text-sm font-medium rounded-md text-blue-200">
+                        <div class="menu-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <span class="menu-text">kenaikan kelas Siswa</span>
+                    </a>
+                
+                <a href="settings_guru.php" class="menu-item px-3 py-2 text-sm font-medium rounded-md text-blue-200">
+                    <div class="menu-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-300" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <span class="menu-text">Settings</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="mt-auto p-3 border-t border-blue-800">
+            <a href="../src/api/logout.php" class="menu-item px-3 py-2 text-sm font-medium text-blue-200 rounded-md">
+                <div class="menu-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-300" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                </div>
+                <span class="menu-text">Logout</span>
+            </a>
+        </div>
+    </div>
+    <div id="main-content" class="main-content">
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="px-5 py-2 flex items-center justify-between">
+            <div class="flex items-center">
+                <button id="toggle-sidebar"
+                    class="p-2 rounded-md text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                </button>
+                <h1 class="ml-3 text-lg font-semibold text-gray-800">Kenaikan Kelas</h1>
+            </div>
+            <div class="flex items-center">
+                <div class="flex items-center">
+                    <div class="avatar-ring">
+                        <img class="h-8 w-8 rounded-full object-cover"
+                            src="../src/img/guru/1.png" alt="User avatar">
+                    </div>
+                    <span class="ml-2 text-sm font-medium text-gray-700">AGUS</span>
+                </div>
+            </div>
+        </div>
+    </header>    <main class="p-4 bg-pattern">
         <div class="card mb-4">
             <div class="card-header flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <h3 class="text-base font-medium text-gray-700">Tabel Data Kenaikan Kelas <span id="current-class-display" class="text-blue-600"></span></h3>
@@ -141,7 +222,6 @@ include "layout/header.php";
         </div>
     </div>
 </div>
-    <!-- Toast Notification -->
     <div id="toast-notification" class="fixed top-4 right-4 z-50 toast-enter toast-transition">
         <div class="bg-white rounded-lg shadow-lg border-l-4 p-4 max-w-sm">
             <div class="flex items-center">
@@ -158,14 +238,13 @@ include "layout/header.php";
     </div>
 <script>
     // Pastikan variabel assignedClassNumber tersedia di lingkup global untuk naik_kelas.js
-    const assignedClassNumber = <?php echo json_encode($assigned_class_number); ?>;
+    const assignedClassNumber = 9;
 </script>
-<!-- Tambahkan script di bawah ini -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        initializeExportPDF();
+        // initializeExportPDF(); // Akan dipanggil di naik_kelas.js
     });
 </script>
 
@@ -173,3 +252,4 @@ include "layout/header.php";
 </body>
 
 </html>
+

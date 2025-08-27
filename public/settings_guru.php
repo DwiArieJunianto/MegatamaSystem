@@ -11,21 +11,32 @@ if (empty($_SESSION['guru_id']) || empty($_SESSION['nama_guru'])) {
 }
 $id_guru = $_SESSION['guru_id'];
 
-$query_guru = mysqli_query($conn, "SELECT * FROM guru WHERE id_guru = '$id_guru'");
-$profil_guru = mysqli_fetch_assoc($query_guru);
-$gender = $profil_guru['jenis_kelamin'];
-$nip = $profil_guru['ID'];
-$status = $profil_guru['status'];
-$bidang_tugas = $profil_guru['mata_pelajaran'];
+// Mengambil semua data profil guru dari tabel 'guru'
+// Kolom 'mata_pelajaran' akan digunakan sebagai 'bidang_tugas'
+$query_guru = mysqli_query($conn, "SELECT nama_guru, jenis_kelamin, ID, status, mata_pelajaran, foto_url FROM guru WHERE id_guru = '$id_guru'");
 
+if (!$query_guru || mysqli_num_rows($query_guru) == 0) {
+    // Handle error jika guru tidak ditemukan atau query gagal
+    // Misalnya, arahkan ke halaman error atau tampilkan pesan
+    echo "Error: Data guru tidak ditemukan.";
+    exit();
+}
+
+$profil_guru = mysqli_fetch_assoc($query_guru);
+
+// Mengisi variabel dengan data dari profil guru
+$nama = $profil_guru['nama_guru'];
+$gender = $profil_guru['jenis_kelamin'];
+$nip = $profil_guru['ID']; // ID di tabel guru, bukan NIP
+$status_guru = $profil_guru['status']; // Menggunakan 'status_guru' untuk menghindari konflik dengan 'status' HTML element ID
+$bidang_tugas = $profil_guru['mata_pelajaran']; // Mengambil dari kolom 'mata_pelajaran'
+$foto = $profil_guru['foto_url'];
 
 include "layout/header.php";
 
 ?>
-<!-- Konten Halaman -->
 <main class="p-4 bg-pattern">
     <div class="max-w-3xl mx-auto">
-        <!-- Card Pengaturan Profil -->
         <div class="card mb-4">
             <div class="card-header">
                 <h3 class="text-lg font-medium text-gray-800">Informasi Profil</h3>
@@ -34,10 +45,9 @@ include "layout/header.php";
             </div>
             <div class="p-6">
                 <form id="profile-form">
-                    <!-- Foto Profil -->
                     <div class="flex flex-col items-center mb-6">
                         <div class="profile-photo-container">
-                            <img src="../src/<?= $foto ?>" alt="Profile photo"
+                            <img src="../src/img/guru/<?= htmlspecialchars($foto) ?>" alt="Profile photo"
                                 class="profile-photo">
                             <label for="photo-upload" class="photo-upload-btn">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" fill="none"
@@ -51,23 +61,20 @@ include "layout/header.php";
                             <input type="file" id="photo-upload" name="foto_profil" class="hidden" accept="image/*">
                         </div>
                         <div class="text-center">
-                            <h4 class="text-lg font-medium text-gray-800"><?= $nama ?></h4>
-                            <p class="text-sm text-gray-500">Guru <?= $bidang_tugas ?></p>
+                            <h4 class="text-lg font-medium text-gray-800"><?= htmlspecialchars($nama) ?></h4>
+                            <p class="text-sm text-gray-500">Guru <?= htmlspecialchars($bidang_tugas) ?></p>
                         </div>
                     </div>
 
-
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <!-- Nama Lengkap -->
                         <div>
                             <label for="fullname" class="block text-sm font-medium text-gray-700 mb-1">Nama
                                 Lengkap</label>
-                            <input type="text" id="fullname" name="fullname" value="<?php echo ($nama) ?>"
+                            <input type="text" id="fullname" name="fullname" value="<?= htmlspecialchars($nama) ?>"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <input type="hidden" name="id_guru" value="<?= $id_guru; ?>">
+                            <input type="hidden" name="id_guru" value="<?= htmlspecialchars($id_guru); ?>">
                         </div>
 
-                        <!-- Jenis Kelamin -->
                         <div>
                             <label for="gender" class="block text-sm font-medium text-gray-700 mb-1">Jenis
                                 Kelamin</label>
@@ -78,40 +85,34 @@ include "layout/header.php";
                             </select>
                         </div>
 
-                        <!-- NIP -->
                         <div>
                             <label for="id" class="block text-sm font-medium text-gray-700 mb-1">ID</label>
-                            <input type="text" id="id" name="id" value="<?php echo ($nip); ?>"
+                            <input type="text" id="id" name="id" value="<?= htmlspecialchars($nip); ?>"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                            <!-- <p class="form-hint">Format: 18 digit angka</p> -->
-                        </div>
+                            </div>
 
-                        <!-- Status -->
                         <div>
                             <label for="status"
                                 class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                             <select id="status" name="status"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                                <option value="Aktif" <?= $status === 'Aktif' ? 'selected' : '' ?>>Aktif</option>
-                                <option value="Tidak Aktif" <?= $status === 'Tidak Aktif' ? 'selected' : '' ?>>Non Aktif</option>
+                                <option value="Aktif" <?= $status_guru === 'Aktif' ? 'selected' : '' ?>>Aktif</option>
+                                <option value="Tidak Aktif" <?= $status_guru === 'Tidak Aktif' ? 'selected' : '' ?>>Non Aktif</option>
                             </select>
                         </div>
                     </div>
 
-                    <!-- Mata Pelajaran yang Diajarkan (Combobox) -->
                     <div class="mb-4">
-                        <label for="subject-input" class="block text-sm font-medium text-gray-700 mb-1">Bidang Tugas</label>
+                        <label for="bidang_tugas_display" class="block text-sm font-medium text-gray-700 mb-1">Bidang Tugas</label>
                         <div class="combobox-container">
                             <input type="text" id="bidang_tugas_display" name="bidang_tugas_display"
                                 value="<?= htmlspecialchars($bidang_tugas) ?>"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
                                 disabled>
-                            
                         </div>
                         <p class="form-hint">Bidang Tugas hanya dapat diubah oleh admin TU</p>
                     </div>
 
-                    <!-- Peringatan: Username & Password tidak bisa diubah langsung -->
                     <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
                         <div class="flex">
                             <div class="flex-shrink-0">
@@ -131,44 +132,6 @@ include "layout/header.php";
                         </div>
                     </div>
 
-                    <!-- <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                <div>
-                                    <label for="username"
-                                        class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                                    <div class="relative">
-                                        <input type="text" id="username" name="username" value="olivia.putri"
-                                            class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
-                                            disabled>
-                                        <div
-                                            class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400"
-                                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label for="password"
-                                        class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                                    <div class="relative">
-                                        <input type="password" id="password" name="password" value="********"
-                                            class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 cursor-not-allowed"
-                                            disabled>
-                                        <div
-                                            class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400"
-                                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                            </svg>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div> -->
-
-                    <!-- Tombol Subbmit -->
                     <div class="flex justify-end">
                         <button type="submit" class="btn-gradient">Simpan Perubahan</button>
                     </div>
@@ -178,7 +141,6 @@ include "layout/header.php";
     </div>
 </main>
 </div>
-<!-- Toast Notification -->
 <div id="toast-notification" class="fixed top-4 right-4 z-50 toast-enter toast-transition">
     <div class="bg-white rounded-lg shadow-lg border-l-4 p-4 max-w-sm">
         <div class="flex items-center">
